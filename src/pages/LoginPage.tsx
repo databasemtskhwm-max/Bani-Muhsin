@@ -49,8 +49,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
         await updateProfile(result.user, { displayName });
         onLogin(result.user);
       } else {
-        const result = await loginWithEmail(email, password);
-        onLogin(result.user);
+        try {
+          const result = await loginWithEmail(email, password);
+          onLogin(result.user);
+        } catch (loginErr: any) {
+          // Special case for the requested admin account: auto-register if not found
+          if (loginErr.code === 'auth/user-not-found' && email === 'databasemtskhwm@gmail.com' && password === 'admin2026') {
+            const result = await registerWithEmail(email, password);
+            await updateProfile(result.user, { displayName: 'Admin Utama' });
+            onLogin(result.user);
+          } else {
+            throw loginErr;
+          }
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -59,6 +70,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       } else {
         setError('Gagal masuk. Periksa kembali email dan kata sandi Anda.');
       }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleQuickAdminLogin = async () => {
+    setEmail('databasemtskhwm@gmail.com');
+    setPassword('admin2026');
+    setError('');
+    setLoading(true);
+    try {
+      try {
+        const result = await loginWithEmail('databasemtskhwm@gmail.com', 'admin2026');
+        onLogin(result.user);
+      } catch (loginErr: any) {
+        // Auto-register if not found
+        if (loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') {
+          try {
+            const result = await registerWithEmail('databasemtskhwm@gmail.com', 'admin2026');
+            await updateProfile(result.user, { displayName: 'Admin Utama' });
+            onLogin(result.user);
+          } catch (regErr) {
+            // If registration also fails (e.g. already exists but wrong password), throw original error
+            throw loginErr;
+          }
+        } else {
+          throw loginErr;
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError('Gagal masuk sebagai Admin. Pastikan kredensial benar.');
     } finally {
       setLoading(false);
     }
@@ -138,13 +181,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
               />
             </div>
           </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-olive text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
-          >
-            {loading ? 'Memproses...' : isRegister ? 'Daftar Sekarang' : 'Masuk'}
-          </button>
+          <div className="grid grid-cols-1 gap-3">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-brand-olive text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50"
+            >
+              {loading ? 'Memproses...' : isRegister ? 'Daftar Sekarang' : 'Masuk'}
+            </button>
+            {!isRegister && (
+              <button
+                type="button"
+                onClick={handleQuickAdminLogin}
+                disabled={loading}
+                className="w-full bg-brand-ink text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <LogIn size={18} /> Masuk sebagai Admin Utama
+              </button>
+            )}
+          </div>
         </form>
 
         <div className="text-center mb-6">
