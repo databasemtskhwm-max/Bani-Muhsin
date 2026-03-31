@@ -237,6 +237,18 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
                       </div>
                     </div>
                   )}
+
+                  {(member.updatedBy || member.createdBy) && (
+                    <div className="pt-4 border-t border-brand-olive/5">
+                      <p className="text-[9px] text-brand-ink/40 italic">
+                        {member.updatedBy ? (
+                          <>Terakhir diperbarui oleh {member.updatedBy} pada {formatDate(member.updatedAt)}</>
+                        ) : (
+                          <>Ditambahkan oleh {member.createdBy} pada {formatDate(member.createdAt)}</>
+                        )}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

@@ -1,0 +1,178 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: settings
+    // Document ID: global
+    // Fields:
+    //   - history: string (required, 1-10000 chars)
+    //   - lastUpdate: string (required, ISO 8601)
+    //   - familyTree: map (required, recursive FamilyMember)
+    //
+    // Collection: news
+    // Document ID: {newsId}
+    // Fields:
+    //   - id: string (required)
+    //   - title: string (required, 1-200 chars)
+    //   - content: string (required, 1-5000 chars)
+    //   - date: string (required, YYYY-MM-DD)
+    //   - category: string (required, 'upcoming' | 'past')
+    //   - author: string (optional)
+    //   - imageUrl: string (optional, URL)
+    //
+    // Collection: gallery
+    // Document ID: {photoId}
+    // Fields:
+    //   - id: string (required)
+    //   - headOfFamilyId: string (required)
+    //   - headOfFamilyName: string (optional)
+    //   - imageUrl: string (required, URL)
+    //   - caption: string (optional, 1-500 chars)
+    //   - date: string (optional, YYYY-MM-DD)
+    //   - uploadedBy: string (optional)
+    //
+    // Collection: auditLog
+    // Document ID: {logId}
+    // Fields:
+    //   - id: string (required)
+    //   - timestamp: string (required, ISO 8601)
+    //   - userEmail: string (required, email)
+    //   - action: string (required)
+    //   - details: string (optional)
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - role: string (required, 'viewer' | 'editor' | 'admin')
+    //   - status: string (required, 'pending' | 'approved' | 'rejected')
+    //   - requestedAt: string (optional)
+    //
+    // ===============================================================
+
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (request.auth.token.email == "databasemtskhwm@gmail.com");
+    }
+
+    function isEditor() {
+      return isAuthenticated() && (
+        isAdmin() || 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor' && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved')
+      );
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(data, fields) {
+      return data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(data, fields) {
+      return data.keys().hasOnly(fields);
+    }
+
+    function isValidString(val, min, max) {
+      return val is string && val.size() >= min && val.size() <= max;
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}.*");
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return hasRequiredFields(data, ['uid', 'email', 'role', 'status']) &&
+             data.role in ['viewer', 'editor', 'admin'] &&
+             data.status in ['pending', 'approved', 'rejected'];
+    }
+
+    function isValidNews(data) {
+      return hasRequiredFields(data, ['id', 'title', 'content', 'date', 'category']) &&
+             isValidString(data.title, 1, 200) &&
+             isValidString(data.content, 1, 5000) &&
+             isValidDateString(data.date) &&
+             data.category in ['upcoming', 'past'] &&
+             (!('imageUrl' in data) || isValidUrl(data.imageUrl));
+    }
+
+    function isValidGallery(data) {
+      return hasRequiredFields(data, ['id', 'headOfFamilyId', 'imageUrl']) &&
+             isValidUrl(data.imageUrl) &&
+             (!('caption' in data) || isValidString(data.caption, 0, 500)) &&
+             (!('date' in data) || isValidDateString(data.date));
+    }
+
+    function isValidAudit(data) {
+      return hasRequiredFields(data, ['id', 'timestamp', 'userEmail', 'action']) &&
+             isValidEmail(data.userEmail) &&
+             data.userEmail == request.auth.token.email;
+    }
+
+    function isValidSettings(data) {
+      return hasRequiredFields(data, ['history', 'lastUpdate', 'familyTree']) &&
+             isValidString(data.history, 1, 10000);
+    }
+
+    // Rules
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      // Users can create their own profile as 'viewer' and 'pending'
+      allow create: if isOwner(userId) && 
+                      request.resource.data.role == 'viewer' && 
+                      request.resource.data.status == 'pending' &&
+                      isValidUser(request.resource.data);
+      // Users can update their own profile but NOT their role/status
+      allow update: if isOwner(userId) && 
+                      request.resource.data.role == resource.data.role && 
+                      request.resource.data.status == resource.data.status &&
+                      isValidUser(request.resource.data);
+      // Admin can do anything
+      allow write: if isAdmin() && isValidUser(request.resource.data);
+    }
+
+    match /settings/global {
+      // Allow public read for the family tree so it's a real website
+      allow read: if true;
+      allow write: if isEditor() && isValidSettings(request.resource.data);
+    }
+
+    match /news/{newsId} {
+      allow read: if true;
+      allow create, update: if isEditor() && isValidNews(request.resource.data);
+      allow delete: if isEditor();
+    }
+
+    match /gallery/{photoId} {
+      allow read: if true;
+      allow create, update: if isEditor() && isValidGallery(request.resource.data);
+      allow delete: if isEditor();
+    }
+
+    match /auditLog/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidAudit(request.resource.data);
+    }
+  }
+}

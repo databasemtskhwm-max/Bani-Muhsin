@@ -1,99 +1,249 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FamilyMember, User, AuditEntry, NewsItem, GalleryItem } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Newspaper, Calendar, User as UserIcon, Image as ImageIcon, Upload } from 'lucide-react';
-import { motion } from 'motion/react';
+import { FamilyMember, AuditEntry, NewsItem, GalleryItem, UserProfile } from '../types';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Newspaper, Calendar, User as UserIcon, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
+import { User as FirebaseUser } from 'firebase/auth';
+import { cn } from '../lib/utils';
+import imageCompression from 'browser-image-compression';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, errorInfo: string | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorInfo: error.message };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-brand-cream flex items-center justify-center p-6 text-center">
+          <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl border border-brand-olive/10">
+            <h2 className="serif text-2xl text-brand-ink mb-4">Ups! Terjadi kesalahan di Admin Panel</h2>
+            <p className="text-brand-ink/60 mb-6">Terjadi kendala saat memuat data admin. Silakan muat ulang halaman.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-brand-olive text-white px-6 py-2 rounded-full hover:shadow-lg transition-all"
+            >
+              Muat Ulang
+            </button>
+            {this.state.errorInfo && (
+              <pre className="mt-6 p-4 bg-rose-50 text-rose-600 text-[10px] rounded-xl overflow-auto text-left">
+                {this.state.errorInfo}
+              </pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface AdminPageProps {
-  user: User;
+  user: FirebaseUser;
+  userProfile: UserProfile | null;
   onLogout: () => void;
 }
 
-export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
+export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogout }) => {
   const [data, setData] = useState<FamilyMember | null>(null);
   const [history, setHistory] = useState<string>('');
   const [news, setNews] = useState<NewsItem[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [showAudit, setShowAudit] = useState(false);
+  const [showUsers, setShowUsers] = useState(false);
+
+  const editorName = userProfile?.role === 'admin' ? 'Admin' : (user.displayName || user.email || 'Editor');
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/family').then(res => res.json()),
-      fetch('/api/history').then(res => res.json()),
-      fetch('/api/news').then(res => res.json()),
-      fetch('/api/gallery').then(res => res.json()),
-      fetch('/api/last-update').then(res => res.json()),
-      fetch('/api/audit-log').then(res => res.json())
-    ]).then(([familyData, historyData, newsData, galleryData, updateData, logs]) => {
-      setData(familyData);
-      setHistory(historyData.history);
-      setNews(newsData);
-      setGallery(galleryData);
-      setLastSaved(updateData.lastUpdate);
-      setAuditLogs(logs);
+    // Listen to Global Settings
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setData(data.familyTree);
+        setHistory(data.history);
+        setLastSaved(data.lastUpdate);
+      } else {
+        // Fallback to API if Firebase is empty
+        fetch('/api/family').then(res => res.json()).then(fData => setData(fData));
+        fetch('/api/history').then(res => res.json()).then(hData => setHistory(hData.history));
+        fetch('/api/last-update').then(res => res.json()).then(uData => setLastSaved(uData.lastUpdate));
+      }
       setLoading(false);
-    }).catch(err => {
-      console.error(err);
-      alert('Gagal memuat data.');
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/global');
       setLoading(false);
     });
+
+    // Listen to News
+    const unsubscribeNews = onSnapshot(collection(db, 'news'), (snapshot) => {
+      const newsData = snapshot.docs.map(doc => doc.data() as NewsItem);
+      if (newsData.length > 0) {
+        setNews(newsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      } else {
+        fetch('/api/news').then(res => res.json()).then(nData => setNews(nData));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'news');
+    });
+
+    // Listen to Gallery
+    const unsubscribeGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
+      const galleryData = snapshot.docs.map(doc => doc.data() as GalleryItem);
+      if (galleryData.length > 0) {
+        setGallery(galleryData);
+      } else {
+        fetch('/api/gallery').then(res => res.json()).then(gData => setGallery(gData));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'gallery');
+    });
+
+    // Listen to Users (Admin only)
+    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+      const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
+      setUsers(usersData);
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'users');
+    });
+
+    // Listen to Audit Logs
+    const unsubscribeAudit = onSnapshot(query(collection(db, 'auditLog'), orderBy('timestamp', 'desc')), (snapshot) => {
+      const logs = snapshot.docs.map(doc => doc.data() as AuditEntry);
+      if (logs.length > 0) {
+        setAuditLogs(logs);
+      } else {
+        fetch('/api/audit-log').then(res => res.json()).then(logs => setAuditLogs(logs));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'auditLog');
+    });
+
+    return () => {
+      unsubscribeSettings();
+      unsubscribeNews();
+      unsubscribeGallery();
+      unsubscribeUsers();
+      unsubscribeAudit();
+    };
   }, []);
 
-  const saveChanges = async () => {
+  const migrateToFirebase = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin memigrasikan data lokal ke Firebase? Ini akan menimpa data di Firebase.')) return;
     setSaving(true);
     try {
-      const [resFamily, resHistory, resNews, resGallery] = await Promise.all([
-        fetch('/api/family', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data, userEmail: user.email })
-        }),
-        fetch('/api/history', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ history, userEmail: user.email })
-        }),
-        fetch('/api/news', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ news, userEmail: user.email })
-        }),
-        fetch('/api/gallery', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gallery, userEmail: user.email })
-        })
-      ]);
+      // 1. Save Global Settings
+      await setDoc(doc(db, 'settings', 'global'), {
+        familyTree: data,
+        history: history,
+        lastUpdate: new Date().toISOString()
+      });
 
-      if (!resFamily.ok || !resHistory.ok || !resNews.ok || !resGallery.ok) {
-        throw new Error('Gagal menyimpan ke server');
+      // 2. Save News
+      for (const item of news) {
+        await setDoc(doc(db, 'news', item.id), item);
       }
 
-      const familyResult = await resFamily.json();
-      setLastSaved(familyResult.lastUpdate);
-      
-      // Refresh audit logs
-      const logsRes = await fetch('/api/audit-log');
-      const logs = await logsRes.json();
-      setAuditLogs(logs);
+      // 3. Save Gallery
+      for (const item of gallery) {
+        await setDoc(doc(db, 'gallery', item.id), item);
+      }
 
-      alert('Perubahan berhasil disimpan!');
+      // 4. Add Audit Log
+      const auditId = Math.random().toString(36).substring(2, 11);
+      await setDoc(doc(db, 'auditLog', auditId), {
+        id: auditId,
+        timestamp: new Date().toISOString(),
+        userEmail: editorName,
+        action: 'MIGRATE_TO_FIREBASE',
+        details: 'Migrated local data to Firebase'
+      });
+
+      alert('Migrasi ke Firebase berhasil!');
     } catch (err) {
       console.error(err);
-      alert('Gagal menyimpan perubahan. Silakan coba lagi.');
+      handleFirestoreError(err, OperationType.WRITE, 'migration');
+      alert('Gagal migrasi ke Firebase.');
     } finally {
       setSaving(false);
     }
   };
 
+  const saveChanges = async () => {
+    setSaving(true);
+    try {
+      const timestamp = new Date().toISOString();
+      
+      // Save to Firebase
+      await setDoc(doc(db, 'settings', 'global'), {
+        familyTree: data,
+        history: history,
+        lastUpdate: timestamp
+      });
+
+      // Update News and Gallery (actually save them now)
+      for (const item of news) {
+        await setDoc(doc(db, 'news', item.id), item);
+      }
+      for (const item of gallery) {
+        await setDoc(doc(db, 'gallery', item.id), item);
+      }
+      
+      // Add Audit Log
+      const auditId = Math.random().toString(36).substring(2, 11);
+      await setDoc(doc(db, 'auditLog', auditId), {
+        id: auditId,
+        timestamp: timestamp,
+        userEmail: editorName,
+        action: 'UPDATE_ALL',
+        details: 'Updated family tree, history, news, and gallery'
+      });
+
+      alert('Perubahan berhasil disimpan ke Firebase!');
+    } catch (err) {
+      console.error(err);
+      handleFirestoreError(err, OperationType.WRITE, 'saveChanges');
+      alert('Gagal menyimpan perubahan ke Firebase.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateUserStatus = async (uid: string, role: 'editor' | 'viewer', status: 'approved' | 'rejected') => {
+    try {
+      const userRef = doc(db, 'users', uid);
+      await setDoc(userRef, { role, status }, { merge: true });
+      alert('Status pengguna diperbarui.');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'users/' + uid);
+      alert('Gagal memperbarui status pengguna.');
+    }
+  };
+
   const updateMember = (id: string, updates: Partial<FamilyMember>) => {
     const newData = JSON.parse(JSON.stringify(data));
+    const timestamp = new Date().toISOString();
     const findAndUpdate = (node: FamilyMember) => {
       if (node.id === id) {
-        Object.assign(node, updates);
+        Object.assign(node, {
+          ...updates,
+          updatedBy: editorName,
+          updatedAt: timestamp
+        });
         return true;
       }
       if (node.children) {
@@ -110,6 +260,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
   const addChild = (parentId: string) => {
     const newData = JSON.parse(JSON.stringify(data));
     const newId = Math.random().toString(36).substr(2, 9);
+    const timestamp = new Date().toISOString();
     const findAndAdd = (node: FamilyMember) => {
       if (node.id === parentId) {
         if (!node.children) node.children = [];
@@ -118,7 +269,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
           name: 'Anggota Baru',
           type: 'descendant',
           children: [],
-          isDeceased: false
+          isDeceased: false,
+          createdBy: editorName,
+          createdAt: timestamp
         });
         return true;
       }
@@ -186,7 +339,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
       content: 'Isi berita di sini...',
       date: new Date().toISOString().split('T')[0],
       category: 'upcoming',
-      author: user.name,
+      author: editorName,
       imageUrl: 'https://picsum.photos/seed/' + Math.random().toString(36).substr(2, 5) + '/1200/800'
     };
     setNews([newNews, ...news]);
@@ -196,8 +349,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
     setNews(news.map(item => item.id === id ? { ...item, ...updates } : item));
   };
 
-  const removeNews = (id: string) => {
-    setNews(news.filter(item => item.id !== id));
+  const removeNews = async (id: string) => {
+    if (!window.confirm('Hapus berita ini?')) return;
+    try {
+      await deleteDoc(doc(db, 'news', id));
+      setNews(news.filter(item => item.id !== id));
+      
+      // Log deletion
+      const auditId = Math.random().toString(36).substring(2, 11);
+      await setDoc(doc(db, 'auditLog', auditId), {
+        id: auditId,
+        timestamp: new Date().toISOString(),
+        userEmail: editorName,
+        action: 'DELETE_NEWS',
+        details: `Menghapus berita dengan ID: ${id}`
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, 'news/' + id);
+      alert('Gagal menghapus berita dari database.');
+    }
   };
 
   const addGalleryItem = () => {
@@ -208,7 +378,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
       imageUrl: 'https://picsum.photos/seed/' + Math.random().toString(36).substr(2, 5) + '/1200/800',
       caption: 'Foto Keluarga',
       date: new Date().toISOString().split('T')[0],
-      uploadedBy: user.name
+      uploadedBy: editorName
     };
     setGallery([newItem, ...gallery]);
   };
@@ -217,8 +387,25 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
     setGallery(gallery.map(item => item.id === id ? { ...item, ...updates } : item));
   };
 
-  const removeGalleryItem = (id: string) => {
-    setGallery(gallery.filter(item => item.id !== id));
+  const removeGalleryItem = async (id: string) => {
+    if (!window.confirm('Hapus foto ini dari galeri?')) return;
+    try {
+      await deleteDoc(doc(db, 'gallery', id));
+      setGallery(gallery.filter(item => item.id !== id));
+
+      // Log deletion
+      const auditId = Math.random().toString(36).substring(2, 11);
+      await setDoc(doc(db, 'auditLog', auditId), {
+        id: auditId,
+        timestamp: new Date().toISOString(),
+        userEmail: editorName,
+        action: 'DELETE_GALLERY',
+        details: `Menghapus foto galeri dengan ID: ${id}`
+      });
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, 'gallery/' + id);
+      alert('Gagal menghapus foto dari database.');
+    }
   };
 
   const getAllMembers = (node: FamilyMember): { id: string, name: string }[] => {
@@ -233,34 +420,79 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
 
   const allMembers = data ? getAllMembers(data) : [];
 
-  const handleFileUpload = async (file: File): Promise<string> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      body: formData
-    });
-    if (!res.ok) throw new Error('Gagal mengunggah file');
-    const result = await res.json();
-    return result.url;
+  const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
+    // Compression options
+    const options = {
+      maxSizeMB: 0.5, // Max 500KB
+      maxWidthOrHeight: 1200,
+      useWebWorker: true,
+    };
+
+    try {
+      const compressedFile = await imageCompression(file, options);
+      const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            onProgress(Math.round(progress));
+          }, 
+          (error) => {
+            console.error('Upload error:', error);
+            reject(error);
+          }, 
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          }
+        );
+      });
+    } catch (error) {
+      console.error('Compression error:', error);
+      // Fallback to original file if compression fails
+      const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
+      
+      return new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            onProgress(Math.round(progress));
+          }, 
+          (error) => {
+            console.error('Upload error:', error);
+            reject(error);
+          }, 
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          }
+        );
+      });
+    }
   };
 
   const FileUploadButton: React.FC<{ onUpload: (url: string) => void, className?: string }> = ({ onUpload, className }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
+    const [progress, setProgress] = useState(0);
 
     const onChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
       setUploading(true);
+      setProgress(0);
       try {
-        const url = await handleFileUpload(file);
+        const url = await handleFileUpload(file, (p) => setProgress(p));
         onUpload(url);
       } catch (err) {
         console.error(err);
         alert('Gagal mengunggah foto.');
       } finally {
         setUploading(false);
+        setProgress(0);
       }
     };
 
@@ -269,7 +501,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
         <input
           type="file"
           ref={fileInputRef}
-          onChange={onChange}
+          onChange={(e) => {
+            onChange(e);
+            // Reset input so same file can be selected again
+            e.target.value = '';
+          }}
           className="hidden"
           accept="image/*"
         />
@@ -277,10 +513,27 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={uploading}
-          className="flex items-center gap-1 text-[10px] bg-brand-olive/10 text-brand-olive px-2 py-1 rounded-lg hover:bg-brand-olive/20 transition-all disabled:opacity-50"
+          className="flex flex-col items-center justify-center gap-1 w-full py-2 bg-brand-olive/10 text-brand-olive rounded-xl hover:bg-brand-olive/20 transition-all disabled:opacity-50 text-xs font-semibold border border-dashed border-brand-olive/30"
         >
-          <Upload size={10} />
-          {uploading ? 'Mengunggah...' : 'Upload File'}
+          {uploading ? (
+            <div className="w-full px-4">
+              <div className="flex justify-between mb-1">
+                <span>Mengunggah...</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="w-full bg-brand-olive/20 rounded-full h-1.5">
+                <div 
+                  className="bg-brand-olive h-1.5 rounded-full transition-all duration-300" 
+                  style={{ width: `${progress}%` }}
+                ></div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Upload size={14} />
+              <span>Unggah Foto</span>
+            </div>
+          )}
         </button>
       </div>
     );
@@ -337,20 +590,26 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
           )}
         </div>
         <div className="flex flex-wrap gap-2 mt-2 ml-8 pb-2 border-b border-brand-olive/5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-grow">
             {node.photoUrl && (
-              <div className="w-8 h-8 rounded-full overflow-hidden border border-brand-olive/10 bg-white">
+              <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-brand-olive/20 bg-white shadow-sm flex-shrink-0 group">
                 <img src={node.photoUrl} alt="" className="w-full h-full object-cover" />
+                <button 
+                  onClick={(e) => {
+                    e.preventDefault();
+                    updateMember(node.id, { photoUrl: '' });
+                  }}
+                  className="absolute inset-0 bg-rose-500/80 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  title="Hapus Foto"
+                >
+                  <Trash2 size={12} />
+                </button>
               </div>
             )}
-            <input
-              type="text"
-              placeholder="URL Foto"
-              value={node.photoUrl || ''}
-              onChange={(e) => updateMember(node.id, { photoUrl: e.target.value })}
-              className="text-[10px] border-brand-olive/10 rounded-lg p-1 w-32"
+            <FileUploadButton 
+              onUpload={(url) => updateMember(node.id, { photoUrl: url })} 
+              className="flex-grow"
             />
-            <FileUploadButton onUpload={(url) => updateMember(node.id, { photoUrl: url })} />
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] opacity-50">Lahir:</span>
@@ -388,7 +647,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
   if (loading) return <div className="p-20 text-center">Memuat editor...</div>;
 
   return (
-    <div className="min-h-screen bg-brand-cream p-6 md:p-12">
+    <ErrorBoundary>
+      <div className="min-h-screen bg-brand-cream p-6 md:p-12">
       <div className="max-w-5xl mx-auto">
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -398,7 +658,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
             <h1 className="serif text-4xl font-bold">Admin Panel Silsilah</h1>
             <div className="flex items-center gap-4 mt-2">
               <span className="text-sm bg-brand-olive/10 px-3 py-1 rounded-full text-brand-olive font-medium">
-                Editor: {user.name} ({user.email})
+                Editor: {editorName}
               </span>
               {lastSaved && (
                 <p className="text-xs text-brand-olive/60">
@@ -407,9 +667,29 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
               )}
             </div>
           </div>
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
-              onClick={() => setShowAudit(!showAudit)}
+              onClick={migrateToFirebase}
+              disabled={saving}
+              className="flex items-center border border-amber-600 text-amber-600 px-4 py-2 rounded-full hover:bg-amber-50 transition-all"
+            >
+              <Database size={18} className="mr-2" />
+              Migrasi ke Firebase
+            </button>
+            {userProfile?.role === 'admin' && (
+              <button
+                onClick={() => { setShowUsers(!showUsers); setShowAudit(false); }}
+                className={cn(
+                  "flex items-center border border-brand-olive/20 text-brand-olive px-4 py-2 rounded-full hover:bg-brand-olive/5 transition-all",
+                  showUsers && "bg-brand-olive text-white"
+                )}
+              >
+                <Shield size={18} className="mr-2" />
+                {showUsers ? 'Tutup Pengguna' : 'Manajemen Pengguna'}
+              </button>
+            )}
+            <button
+              onClick={() => { setShowAudit(!showAudit); setShowUsers(false); }}
               className="flex items-center border border-brand-olive/20 text-brand-olive px-4 py-2 rounded-full hover:bg-brand-olive/5 transition-all"
             >
               <History size={18} className="mr-2" />
@@ -432,6 +712,63 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
             </button>
           </div>
         </div>
+
+        {showUsers && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="bg-white p-6 rounded-3xl border border-brand-olive/10 shadow-sm mb-8 overflow-hidden"
+          >
+            <h2 className="serif text-2xl mb-4">Manajemen Pengguna (Persetujuan Editor)</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {users.filter(u => u.uid !== user.uid).map((u) => (
+                <div key={u.uid} className="p-4 rounded-2xl bg-brand-cream/50 border border-brand-olive/5">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-bold text-sm">{u.displayName || 'Tanpa Nama'}</p>
+                      <p className="text-[10px] opacity-50">{u.email}</p>
+                    </div>
+                    <span className={cn(
+                      "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",
+                      u.status === 'approved' ? "bg-emerald-100 text-emerald-700" : 
+                      u.status === 'pending' ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
+                    )}>
+                      {u.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="flex gap-2">
+                      <span className="text-[10px] opacity-60">Role: {u.role}</span>
+                    </div>
+                    <div className="flex gap-1">
+                      {u.status !== 'approved' && (
+                        <button 
+                          onClick={() => updateUserStatus(u.uid, 'editor', 'approved')}
+                          className="p-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors"
+                          title="Setujui sebagai Editor"
+                        >
+                          <Check size={14} />
+                        </button>
+                      )}
+                      {u.status !== 'rejected' && (
+                        <button 
+                          onClick={() => updateUserStatus(u.uid, 'viewer', 'rejected')}
+                          className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors"
+                          title="Tolak / Cabut Akses"
+                        >
+                          <XIcon size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {users.length <= 1 && (
+                <p className="col-span-full text-center text-sm text-brand-olive/50 italic py-10">Belum ada pengguna lain.</p>
+              )}
+            </div>
+          </motion.div>
+        )}
 
         {showAudit && (
           <motion.div 
@@ -550,21 +887,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
                           <Trash2 size={14} />
                         </button>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={item.imageUrl || ''}
-                          onChange={(e) => updateNewsItem(item.id, { imageUrl: e.target.value })}
-                          className="flex-grow text-[10px] border border-brand-olive/10 rounded-lg p-1 focus:ring-brand-olive"
-                          placeholder="URL Gambar (opsional)"
-                        />
+                      <div className="space-y-2">
                         <FileUploadButton onUpload={(url) => updateNewsItem(item.id, { imageUrl: url })} />
+                        {item.imageUrl && (
+                          <div className="relative h-32 rounded-xl overflow-hidden border border-brand-olive/10">
+                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                updateNewsItem(item.id, { imageUrl: '' });
+                              }}
+                              className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors shadow-lg z-10"
+                              title="Hapus Foto"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {item.imageUrl && (
-                        <div className="h-20 rounded-lg overflow-hidden border border-brand-olive/5">
-                          <img src={item.imageUrl} alt="" className="w-full h-full object-cover grayscale opacity-50" />
-                        </div>
-                      )}
                     </div>
                   ))
                 )}
@@ -622,21 +962,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
                           />
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="text"
-                          value={item.imageUrl || ''}
-                          onChange={(e) => updateGalleryItem(item.id, { imageUrl: e.target.value })}
-                          className="flex-grow text-[10px] border border-brand-olive/10 rounded-lg p-1 focus:ring-brand-olive"
-                          placeholder="URL Gambar"
-                        />
+                      <div className="space-y-2">
                         <FileUploadButton onUpload={(url) => updateGalleryItem(item.id, { imageUrl: url })} />
+                        {item.imageUrl && (
+                          <div className="relative h-48 rounded-xl overflow-hidden border border-brand-olive/10">
+                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                updateGalleryItem(item.id, { imageUrl: '' });
+                              }}
+                              className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors shadow-lg z-10"
+                              title="Hapus Foto"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      {item.imageUrl && (
-                        <div className="h-32 rounded-lg overflow-hidden border border-brand-olive/5">
-                          <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                        </div>
-                      )}
                       <div className="flex justify-between items-center pt-2 border-t border-brand-olive/5">
                         <span className="text-[10px] text-brand-ink/40 flex items-center">
                           <UserIcon size={10} className="mr-1" /> {item.uploadedBy}
@@ -657,5 +1000,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, onLogout }) => {
         </div>
       </div>
     </div>
-  );
+  </ErrorBoundary>
+);
 };

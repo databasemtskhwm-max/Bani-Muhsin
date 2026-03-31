@@ -11,8 +11,10 @@ export interface FamilyMember {
   birthDate?: string;
   deathDate?: string;
   address?: string;
-  lastModifiedBy?: string;
-  lastModifiedAt?: string;
+  createdBy?: string;
+  createdAt?: string;
+  updatedBy?: string;
+  updatedAt?: string;
 }
 
 export interface NewsItem {
@@ -25,10 +27,13 @@ export interface NewsItem {
   imageUrl?: string;
 }
 
-export interface User {
-  id: string;
+export interface UserProfile {
+  uid: string;
   email: string;
-  name: string;
+  displayName: string;
+  role: 'viewer' | 'editor' | 'admin';
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt?: string;
 }
 
 export interface AuditEntry {

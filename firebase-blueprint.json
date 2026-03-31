@@ -1,0 +1,115 @@
+{
+  "entities": {
+    "FamilyMember": {
+      "title": "Family Member",
+      "description": "A member of the family tree, potentially with children.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "spouse": { "type": "string" },
+        "isDeceased": { "type": "boolean" },
+        "photoUrl": { "type": "string" },
+        "birthDate": { "type": "string" },
+        "deathDate": { "type": "string" },
+        "address": { "type": "string" },
+        "children": { "type": "array", "items": { "type": "object" } },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedBy": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "User": {
+      "title": "User Profile",
+      "description": "A user of the application with roles and permissions.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["viewer", "editor", "admin"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "requestedAt": { "type": "string" }
+      },
+      "required": ["uid", "email", "role", "status"]
+    },
+    "NewsItem": {
+      "title": "News Item",
+      "description": "A news or announcement item.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "author": { "type": "string" },
+        "imageUrl": { "type": "string" }
+      },
+      "required": ["id", "title", "content", "date", "category"]
+    },
+    "GalleryItem": {
+      "title": "Gallery Item",
+      "description": "A photo in the family gallery.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "headOfFamilyId": { "type": "string" },
+        "headOfFamilyName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "caption": { "type": "string" },
+        "date": { "type": "string" },
+        "uploadedBy": { "type": "string" }
+      },
+      "required": ["id", "headOfFamilyId", "imageUrl"]
+    },
+    "AuditEntry": {
+      "title": "Audit Entry",
+      "description": "A log of an administrative action.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "action": { "type": "string" },
+        "details": { "type": "string" }
+      },
+      "required": ["id", "timestamp", "userEmail", "action"]
+    },
+    "GlobalSettings": {
+      "title": "Global Settings",
+      "description": "Global application data including the family tree and history.",
+      "type": "object",
+      "properties": {
+        "history": { "type": "string" },
+        "lastUpdate": { "type": "string" },
+        "familyTree": { "$ref": "FamilyMember" }
+      }
+    }
+  },
+  "firestore": {
+    "/settings/global": {
+      "schema": "GlobalSettings",
+      "description": "Global configuration and the main family tree."
+    },
+    "/news/{newsId}": {
+      "schema": "NewsItem",
+      "description": "Collection of news and announcements."
+    },
+    "/gallery/{photoId}": {
+      "schema": "GalleryItem",
+      "description": "Collection of family gallery photos."
+    },
+    "/auditLog/{logId}": {
+      "schema": "AuditEntry",
+      "description": "Collection of audit logs."
+    },
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles and roles."
+    }
+  }
+}

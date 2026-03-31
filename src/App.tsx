@@ -4,10 +4,53 @@ import { FamilyTreeInteractive } from './components/FamilyTreeInteractive';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
-import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft } from 'lucide-react';
-import { FamilyMember, User, NewsItem, GalleryItem } from './types';
+import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut } from 'lucide-react';
+import { FamilyMember, NewsItem, GalleryItem, UserProfile } from './types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
+import { auth, db, doc, collection, onSnapshot, logout, handleFirestoreError, OperationType, setDoc, getDoc } from './firebase';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean, errorInfo: string | null }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, errorInfo: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, errorInfo: error.message };
+  }
+
+  componentDidCatch(error: any, errorInfo: any) {
+    console.error("ErrorBoundary caught an error", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-brand-cream flex items-center justify-center p-6 text-center">
+          <div className="max-w-md bg-white p-8 rounded-3xl shadow-xl border border-brand-olive/10">
+            <h2 className="serif text-2xl text-brand-ink mb-4">Ups! Terjadi kesalahan</h2>
+            <p className="text-brand-ink/60 mb-6">Aplikasi mengalami kendala teknis. Silakan muat ulang halaman.</p>
+            <button 
+              onClick={() => window.location.reload()}
+              className="bg-brand-olive text-white px-6 py-2 rounded-full hover:shadow-lg transition-all"
+            >
+              Muat Ulang
+            </button>
+            {this.state.errorInfo && (
+              <pre className="mt-6 p-4 bg-rose-50 text-rose-600 text-[10px] rounded-xl overflow-auto text-left">
+                {this.state.errorInfo}
+              </pre>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -20,27 +63,78 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(window.location.pathname === '/admin');
   const [isLogin, setIsLogin] = useState(window.location.pathname === '/login');
   const [isGallery, setIsGallery] = useState(window.location.pathname === '/gallery');
-  const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('family_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/family').then(res => res.json()),
-      fetch('/api/history').then(res => res.json()),
-      fetch('/api/news').then(res => res.json()),
-      fetch('/api/gallery').then(res => res.json()),
-      fetch('/api/last-update').then(res => res.json())
-    ]).then(([fData, hData, nData, gData, uData]) => {
-      setFamilyData(fData);
-      setHistoryText(hData.history);
-      setNews(nData);
-      setGallery(gData);
-      setLastUpdate(uData.lastUpdate);
-    }).catch(err => {
-      console.error("Failed to fetch data:", err);
-      setFamilyData({ id: 'root', name: 'KH. Zaenal Muhsin', type: 'ancestor', children: [] });
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
+      setUser(firebaseUser);
+      setIsAuthReady(true);
+      if (firebaseUser) {
+        // Sync User Profile
+        const userRef = doc(db, 'users', firebaseUser.uid);
+        const userSnap = await getDoc(userRef);
+        
+        if (userSnap.exists()) {
+          setUserProfile(userSnap.data() as UserProfile);
+        } else {
+          // Create default profile
+          const newProfile: UserProfile = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || '',
+            displayName: firebaseUser.displayName || '',
+            role: 'viewer',
+            status: 'pending',
+            requestedAt: new Date().toISOString()
+          };
+          await setDoc(userRef, newProfile);
+          setUserProfile(newProfile);
+        }
+      } else {
+        setUserProfile(null);
+      }
+    });
+
+    // Listen to Global Settings (Family Tree, History, Last Update)
+    const unsubscribeSettings = onSnapshot(doc(db, 'settings', 'global'), (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
+        setFamilyData(data.familyTree);
+        setHistoryText(data.history);
+        setLastUpdate(data.lastUpdate);
+      } else {
+        // Fallback to API if Firebase is empty (for migration)
+        fetch('/api/family').then(res => res.json()).then(fData => setFamilyData(fData));
+        fetch('/api/history').then(res => res.json()).then(hData => setHistoryText(hData.history));
+        fetch('/api/last-update').then(res => res.json()).then(uData => setLastUpdate(uData.lastUpdate));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'settings/global');
+    });
+
+    // Listen to News
+    const unsubscribeNews = onSnapshot(collection(db, 'news'), (snapshot) => {
+      const newsData = snapshot.docs.map(doc => doc.data() as NewsItem);
+      if (newsData.length > 0) {
+        setNews(newsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      } else {
+        fetch('/api/news').then(res => res.json()).then(nData => setNews(nData));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'news');
+    });
+
+    // Listen to Gallery
+    const unsubscribeGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
+      const galleryData = snapshot.docs.map(doc => doc.data() as GalleryItem);
+      if (galleryData.length > 0) {
+        setGallery(galleryData);
+      } else {
+        fetch('/api/gallery').then(res => res.json()).then(gData => setGallery(gData));
+      }
+    }, (error) => {
+      handleFirestoreError(error, OperationType.GET, 'gallery');
     });
 
     const handlePopState = () => {
@@ -58,6 +152,10 @@ export default function App() {
     }, 5000);
 
     return () => {
+      unsubscribeAuth();
+      unsubscribeSettings();
+      unsubscribeNews();
+      unsubscribeGallery();
       window.removeEventListener('popstate', handlePopState);
       clearInterval(slideInterval);
     };
@@ -70,15 +168,14 @@ export default function App() {
     setIsGallery(path === '/gallery');
   };
 
-  const handleLogin = (userData: User) => {
+  const handleLogin = (userData: FirebaseUser) => {
     setUser(userData);
-    localStorage.setItem('family_user', JSON.stringify(userData));
     navigateTo('/admin');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await logout();
     setUser(null);
-    localStorage.removeItem('family_user');
     navigateTo('/');
   };
 
@@ -201,6 +298,25 @@ export default function App() {
     }
   };
 
+  const requestEditorAccess = async () => {
+    if (!user || !userProfile) return;
+    try {
+      const userRef = doc(db, 'users', user.uid);
+      const updatedProfile: UserProfile = {
+        ...userProfile,
+        role: 'editor',
+        status: 'pending',
+        requestedAt: new Date().toISOString()
+      };
+      await setDoc(userRef, updatedProfile);
+      setUserProfile(updatedProfile);
+      alert('Permintaan akses editor telah dikirim. Tunggu persetujuan admin.');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'users/' + user.uid);
+      alert('Gagal mengirim permintaan.');
+    }
+  };
+
   if (isLogin) {
     return <LoginPage onLogin={handleLogin} onBack={() => navigateTo('/')} />;
   }
@@ -210,24 +326,28 @@ export default function App() {
       navigateTo('/login');
       return null;
     }
-    return <AdminPage user={user} onLogout={handleLogout} />;
+    return <AdminPage user={user} userProfile={userProfile} onLogout={handleLogout} />;
   }
 
   if (isGallery) {
     // Group gallery by head of family
     const groupedGallery = gallery.reduce((acc, item) => {
-      if (!acc[item.headOfFamilyId]) {
-        acc[item.headOfFamilyId] = {
-          name: item.headOfFamilyName,
+      const groupKey = item.headOfFamilyId || 'umum';
+      const groupName = item.headOfFamilyName || 'Lainnya / Umum';
+      
+      if (!acc[groupKey]) {
+        acc[groupKey] = {
+          name: groupName,
           items: []
         };
       }
-      acc[item.headOfFamilyId].items.push(item);
+      acc[groupKey].items.push(item);
       return acc;
     }, {} as Record<string, { name: string, items: GalleryItem[] }>);
 
     return (
-      <div className="min-h-screen bg-brand-cream p-6 md:p-12">
+      <ErrorBoundary>
+        <div className="min-h-screen bg-brand-cream p-6 md:p-12">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-12">
             <div>
@@ -284,30 +404,58 @@ export default function App() {
           )}
         </div>
       </div>
-    );
-  }
+    </ErrorBoundary>
+  );
+}
 
   return (
-    <div className="min-h-screen flex flex-col selection:bg-brand-olive selection:text-white">
+    <ErrorBoundary>
+      <div className="min-h-screen flex flex-col selection:bg-brand-olive selection:text-white">
       {/* Navigation */}
       <nav className="p-6 flex justify-between items-center border-b border-brand-olive/10">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigateTo('/')}>
           <TreeDeciduous className="text-brand-olive" size={24} />
           <span className="serif text-2xl font-semibold tracking-tight">Bani Muhsin</span>
         </div>
-        <div className="hidden md:flex gap-8 text-sm uppercase tracking-widest font-medium opacity-70">
+        <div className="hidden md:flex gap-8 text-sm uppercase tracking-widest font-medium opacity-70 items-center">
           <a href="#history" className="hover:opacity-100 transition-opacity">Sejarah</a>
           <a href="#news" className="hover:opacity-100 transition-opacity">Berita</a>
           <a href="#tree" className="hover:opacity-100 transition-opacity">Silsilah</a>
           <button onClick={() => navigateTo('/gallery')} className="hover:opacity-100 transition-opacity">Galeri</button>
-          {user ? (
-            <button onClick={() => navigateTo('/admin')} className="hover:opacity-100 transition-opacity flex items-center gap-1">
-              <Settings size={14} /> Admin
-            </button>
-          ) : (
+          {user && userProfile && (userProfile.role === 'admin' || (userProfile.role === 'editor' && userProfile.status === 'approved')) ? (
+            <div className="flex items-center gap-4">
+              <button onClick={() => navigateTo('/admin')} className="hover:opacity-100 transition-opacity flex items-center gap-1">
+                <Settings size={14} /> {userProfile.role === 'admin' ? 'Admin' : 'Editor'}
+              </button>
+              <button onClick={handleLogout} className="hover:text-rose-600 transition-colors flex items-center gap-1 text-rose-500/80">
+                <LogOut size={14} /> Keluar
+              </button>
+            </div>
+          ) : user && userProfile && userProfile.role === 'viewer' ? (
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={requestEditorAccess}
+                className="flex items-center gap-2 px-3 py-1 bg-brand-olive/10 text-brand-olive rounded-full text-[10px] font-bold hover:bg-brand-olive/20 transition-all"
+              >
+                <Settings size={12} /> Ajukan Jadi Editor
+              </button>
+              <button onClick={handleLogout} className="hover:text-rose-600 transition-colors flex items-center gap-1 text-rose-500/80">
+                <LogOut size={14} /> Keluar
+              </button>
+            </div>
+          ) : !user ? (
             <button onClick={() => navigateTo('/login')} className="hover:opacity-100 transition-opacity flex items-center gap-1">
               <LogIn size={14} /> Masuk
             </button>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-2 px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold">
+                <Settings size={12} className="animate-spin" /> Menunggu Persetujuan
+              </div>
+              <button onClick={handleLogout} className="hover:text-rose-600 transition-colors flex items-center gap-1 text-rose-500/80">
+                <LogOut size={14} /> Keluar
+              </button>
+            </div>
           )}
         </div>
         <button 
@@ -784,7 +932,8 @@ export default function App() {
           &copy; {new Date().getFullYear()} Keluarga Besar Bani Muhsin. Dibuat dengan cinta.
         </p>
       </footer>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }
 
