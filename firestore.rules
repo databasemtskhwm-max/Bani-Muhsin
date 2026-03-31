@@ -111,7 +111,7 @@ service cloud.firestore {
     function isValidNews(data) {
       return hasRequiredFields(data, ['id', 'title', 'content', 'date', 'category']) &&
              isValidString(data.title, 1, 200) &&
-             isValidString(data.content, 1, 5000) &&
+             isValidString(data.content, 1, 10000) &&
              isValidDateString(data.date) &&
              data.category in ['upcoming', 'past'] &&
              (!('imageUrl' in data) || isValidUrl(data.imageUrl));
@@ -120,14 +120,16 @@ service cloud.firestore {
     function isValidGallery(data) {
       return hasRequiredFields(data, ['id', 'headOfFamilyId', 'imageUrl']) &&
              isValidUrl(data.imageUrl) &&
-             (!('caption' in data) || isValidString(data.caption, 0, 500)) &&
+             (!('caption' in data) || isValidString(data.caption, 0, 1000)) &&
              (!('date' in data) || isValidDateString(data.date));
     }
 
     function isValidAudit(data) {
       return hasRequiredFields(data, ['id', 'timestamp', 'userEmail', 'action']) &&
-             isValidEmail(data.userEmail) &&
-             data.userEmail == request.auth.token.email;
+             (
+               (data.userEmail == request.auth.token.email && isValidEmail(data.userEmail)) ||
+               (data.userEmail == "Admin" && isAdmin())
+             );
     }
 
     function isValidSettings(data) {

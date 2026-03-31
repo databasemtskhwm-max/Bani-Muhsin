@@ -147,37 +147,60 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     setSaving(true);
     try {
       // 1. Save Global Settings
-      await setDoc(doc(db, 'settings', 'global'), {
-        familyTree: data,
-        history: history,
-        lastUpdate: new Date().toISOString()
-      });
+      try {
+        await setDoc(doc(db, 'settings', 'global'), {
+          familyTree: data,
+          history: history,
+          lastUpdate: new Date().toISOString()
+        });
+      } catch (err) {
+        console.error('Migration error (settings):', err);
+        handleFirestoreError(err, OperationType.WRITE, 'settings/global');
+        throw new Error('Gagal menyimpan pengaturan global saat migrasi.');
+      }
 
       // 2. Save News
       for (const item of news) {
-        await setDoc(doc(db, 'news', item.id), item);
+        try {
+          await setDoc(doc(db, 'news', item.id), item);
+        } catch (err) {
+          console.error('Migration error (news):', item.id, err);
+          handleFirestoreError(err, OperationType.WRITE, 'news/' + item.id);
+          throw new Error(`Gagal menyimpan berita saat migrasi: ${item.title}`);
+        }
       }
 
       // 3. Save Gallery
       for (const item of gallery) {
-        await setDoc(doc(db, 'gallery', item.id), item);
+        try {
+          await setDoc(doc(db, 'gallery', item.id), item);
+        } catch (err) {
+          console.error('Migration error (gallery):', item.id, err);
+          handleFirestoreError(err, OperationType.WRITE, 'gallery/' + item.id);
+          throw new Error(`Gagal menyimpan galeri saat migrasi: ${item.caption}`);
+        }
       }
 
       // 4. Add Audit Log
       const auditId = Math.random().toString(36).substring(2, 11);
-      await setDoc(doc(db, 'auditLog', auditId), {
-        id: auditId,
-        timestamp: new Date().toISOString(),
-        userEmail: editorName,
-        action: 'MIGRATE_TO_FIREBASE',
-        details: 'Migrated local data to Firebase'
-      });
+      try {
+        await setDoc(doc(db, 'auditLog', auditId), {
+          id: auditId,
+          timestamp: new Date().toISOString(),
+          userEmail: editorName,
+          action: 'MIGRATE_TO_FIREBASE',
+          details: 'Migrated local data to Firebase'
+        });
+      } catch (err) {
+        console.error('Migration error (audit):', err);
+        handleFirestoreError(err, OperationType.WRITE, 'auditLog/' + auditId);
+        throw new Error('Gagal menyimpan catatan audit saat migrasi.');
+      }
 
       alert('Migrasi ke Firebase berhasil!');
     } catch (err) {
-      console.error(err);
-      handleFirestoreError(err, OperationType.WRITE, 'migration');
-      alert('Gagal migrasi ke Firebase.');
+      console.error('Migration failed:', err);
+      alert(`Gagal migrasi: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSaving(false);
     }
@@ -189,35 +212,58 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       const timestamp = new Date().toISOString();
       
       // Save to Firebase
-      await setDoc(doc(db, 'settings', 'global'), {
-        familyTree: data,
-        history: history,
-        lastUpdate: timestamp
-      });
+      try {
+        await setDoc(doc(db, 'settings', 'global'), {
+          familyTree: data,
+          history: history,
+          lastUpdate: timestamp
+        });
+      } catch (err) {
+        console.error('Error saving settings:', err);
+        handleFirestoreError(err, OperationType.WRITE, 'settings/global');
+        throw new Error('Gagal menyimpan pengaturan global.');
+      }
 
       // Update News and Gallery (actually save them now)
       for (const item of news) {
-        await setDoc(doc(db, 'news', item.id), item);
+        try {
+          await setDoc(doc(db, 'news', item.id), item);
+        } catch (err) {
+          console.error('Error saving news item:', item.id, err);
+          handleFirestoreError(err, OperationType.WRITE, 'news/' + item.id);
+          throw new Error(`Gagal menyimpan berita: ${item.title}`);
+        }
       }
       for (const item of gallery) {
-        await setDoc(doc(db, 'gallery', item.id), item);
+        try {
+          await setDoc(doc(db, 'gallery', item.id), item);
+        } catch (err) {
+          console.error('Error saving gallery item:', item.id, err);
+          handleFirestoreError(err, OperationType.WRITE, 'gallery/' + item.id);
+          throw new Error(`Gagal menyimpan galeri: ${item.caption}`);
+        }
       }
       
       // Add Audit Log
       const auditId = Math.random().toString(36).substring(2, 11);
-      await setDoc(doc(db, 'auditLog', auditId), {
-        id: auditId,
-        timestamp: timestamp,
-        userEmail: editorName,
-        action: 'UPDATE_ALL',
-        details: 'Updated family tree, history, news, and gallery'
-      });
+      try {
+        await setDoc(doc(db, 'auditLog', auditId), {
+          id: auditId,
+          timestamp: timestamp,
+          userEmail: editorName,
+          action: 'UPDATE_ALL',
+          details: 'Updated family tree, history, news, and gallery'
+        });
+      } catch (err) {
+        console.error('Error saving audit log:', err);
+        handleFirestoreError(err, OperationType.WRITE, 'auditLog/' + auditId);
+        throw new Error('Gagal menyimpan catatan audit.');
+      }
 
       alert('Perubahan berhasil disimpan ke Firebase!');
     } catch (err) {
-      console.error(err);
-      handleFirestoreError(err, OperationType.WRITE, 'saveChanges');
-      alert('Gagal menyimpan perubahan ke Firebase.');
+      console.error('saveChanges failed:', err);
+      alert(`Gagal menyimpan perubahan: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setSaving(false);
     }
@@ -421,17 +467,30 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const allMembers = data ? getAllMembers(data) : [];
 
   const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
+    if (!storage) {
+      throw new Error('Firebase Storage tidak terinisialisasi. Pastikan Firebase Storage sudah diaktifkan di konsol Firebase.');
+    }
+
     // Compression options
     const options = {
       maxSizeMB: 0.5, // Max 500KB
       maxWidthOrHeight: 1200,
-      useWebWorker: true,
+      useWebWorker: false, // Disable web worker for better compatibility in iframe environments
     };
 
+    let fileToUpload = file;
     try {
-      const compressedFile = await imageCompression(file, options);
+      console.log('Starting image compression...');
+      fileToUpload = await imageCompression(file, options);
+      console.log('Compression successful:', fileToUpload.size / 1024, 'KB');
+    } catch (compErr) {
+      console.warn('Compression failed, uploading original:', compErr);
+      fileToUpload = file;
+    }
+
+    try {
       const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
+      const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
 
       return new Promise((resolve, reject) => {
         uploadTask.on('state_changed', 
@@ -440,37 +499,31 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             onProgress(Math.round(progress));
           }, 
           (error) => {
-            console.error('Upload error:', error);
-            reject(error);
+            console.error('Upload error details:', error);
+            let message = 'Gagal mengunggah.';
+            if (error.code === 'storage/unauthorized') {
+              message = 'Izin ditolak. Pastikan Storage Rules mengizinkan unggahan.';
+            } else if (error.code === 'storage/canceled') {
+              message = 'Unggahan dibatalkan.';
+            } else if (error.code === 'storage/unknown') {
+              message = 'Kesalahan tidak diketahui pada Storage.';
+            }
+            reject(new Error(`${message} (${error.code})`));
           }, 
           async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadURL);
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              resolve(downloadURL);
+            } catch (urlErr) {
+              console.error('Error getting download URL:', urlErr);
+              reject(new Error('Gagal mendapatkan URL unduhan setelah unggah.'));
+            }
           }
         );
       });
     } catch (error) {
-      console.error('Compression error:', error);
-      // Fallback to original file if compression fails
-      const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, file);
-      
-      return new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            onProgress(Math.round(progress));
-          }, 
-          (error) => {
-            console.error('Upload error:', error);
-            reject(error);
-          }, 
-          async () => {
-            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-            resolve(downloadURL);
-          }
-        );
-      });
+      console.error('File upload process error:', error);
+      throw error;
     }
   };
 
@@ -488,8 +541,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         const url = await handleFileUpload(file, (p) => setProgress(p));
         onUpload(url);
       } catch (err) {
-        console.error(err);
-        alert('Gagal mengunggah foto.');
+        console.error('Upload component error:', err);
+        alert(`Gagal mengunggah foto: ${err instanceof Error ? err.message : String(err)}`);
       } finally {
         setUploading(false);
         setProgress(0);
