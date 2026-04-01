@@ -4,7 +4,7 @@ import { FamilyTreeInteractive } from './components/FamilyTreeInteractive';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
-import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X } from 'lucide-react';
+import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X, Info, MessageCircle } from 'lucide-react';
 import { FamilyMember, NewsItem, GalleryItem, UserProfile } from './types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -108,6 +108,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<FamilyMember[]>([]);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+  const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
 
   const scrollToMember = (memberId: string) => {
     // Wait for potential expansion in FamilyTreeInteractive
@@ -735,12 +736,20 @@ export default function App() {
               </p>
             )}
             
-            <button 
-              onClick={() => setIsDownloadModalOpen(true)}
-              className="inline-flex items-center gap-3 bg-white/60 backdrop-blur-md border border-brand-olive/20 text-brand-olive px-10 py-4 rounded-full text-sm font-bold hover:bg-brand-olive hover:text-white transition-all shadow-xl shadow-brand-olive/5 hover:shadow-2xl"
-            >
-              <Download size={18} /> Unduh Dokumen Silsilah (PDF)
-            </button>
+            <div className="flex flex-wrap justify-center gap-4">
+              <button 
+                onClick={() => setIsDownloadModalOpen(true)}
+                className="inline-flex items-center gap-3 bg-white/60 backdrop-blur-md border border-brand-olive/20 text-brand-olive px-10 py-4 rounded-full text-sm font-bold hover:bg-brand-olive hover:text-white transition-all shadow-xl shadow-brand-olive/5 hover:shadow-2xl"
+              >
+                <Download size={18} /> Unduh Dokumen Silsilah (PDF)
+              </button>
+              <button 
+                onClick={() => setIsAboutModalOpen(true)}
+                className="inline-flex items-center gap-3 bg-white/40 backdrop-blur-md border border-white/50 text-brand-olive px-10 py-4 rounded-full text-sm font-bold hover:bg-brand-olive hover:text-white transition-all shadow-xl shadow-brand-olive/5 hover:shadow-2xl"
+              >
+                <Info size={18} /> Tentang Penyusunan
+              </button>
+            </div>
           </div>
           <div className="bg-white/30 backdrop-blur-md p-4 md:p-12 rounded-[3rem] border border-white/50 shadow-2xl">
             <div className="max-w-md mx-auto mb-10 relative">
@@ -772,11 +781,15 @@ export default function App() {
         {/* Download Modal */}
         <AnimatePresence>
           {isDownloadModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div 
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setIsDownloadModalOpen(false)}
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
                 className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-lg w-full relative border border-brand-olive/10 p-8 md:p-10"
               >
                 <button 
@@ -876,11 +889,15 @@ export default function App() {
         {/* Search Results Modal */}
         <AnimatePresence>
           {isSearchModalOpen && (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div 
+              className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setIsSearchModalOpen(false)}
+            >
               <motion.div
                 initial={{ opacity: 0, scale: 0.9, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
                 className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-lg w-full relative border border-brand-olive/10 p-8 md:p-10"
               >
                 <button 
@@ -925,6 +942,84 @@ export default function App() {
                 >
                   Tutup
                 </button>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* About Modal */}
+        <AnimatePresence>
+          {isAboutModalOpen && (
+            <div 
+              className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+              onClick={() => setIsAboutModalOpen(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-lg w-full relative border border-brand-olive/10 p-8 md:p-10"
+              >
+                <button 
+                  onClick={() => setIsAboutModalOpen(false)}
+                  className="absolute top-6 right-6 p-2 rounded-full bg-brand-cream text-brand-ink/60 hover:text-brand-olive transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <div className="flex items-center gap-4 mb-6">
+                  <div className="w-12 h-12 rounded-2xl bg-brand-olive/10 flex items-center justify-center text-brand-olive">
+                    <Info size={24} />
+                  </div>
+                  <h2 className="serif text-3xl">Penyusunan Silsilah</h2>
+                </div>
+
+                <div className="space-y-8 mb-10">
+                  <div className="relative pl-6 border-l-2 border-brand-olive/20">
+                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-brand-olive border-4 border-white shadow-sm"></div>
+                    <h3 className="font-bold text-brand-olive text-sm uppercase tracking-widest mb-2">Penyusunan Pertama</h3>
+                    <p className="text-brand-ink/80 font-medium mb-1">Januari 2002</p>
+                    <p className="text-brand-ink/60 text-sm mb-3">Oleh: <span className="font-bold text-brand-ink">T. MUSTHOFA KF</span></p>
+                    <div className="bg-brand-cream/50 p-4 rounded-2xl border border-brand-olive/5">
+                      <p className="text-[10px] uppercase tracking-widest font-bold text-brand-olive/40 mb-2">Nara Sumber:</p>
+                      <ul className="text-sm space-y-1 text-brand-ink/80">
+                        <li>1. Hj. Siti Sofiyah</li>
+                        <li>2. KH. FUAD MUSIN</li>
+                        <li>3. Aki ENON</li>
+                      </ul>
+                    </div>
+                  </div>
+
+                  <div className="relative pl-6 border-l-2 border-brand-olive/20">
+                    <div className="absolute -left-[9px] top-0 w-4 h-4 rounded-full bg-brand-olive border-4 border-white shadow-sm"></div>
+                    <h3 className="font-bold text-brand-olive text-sm uppercase tracking-widest mb-2">Penyempurnaan</h3>
+                    <p className="text-brand-ink/80 font-medium mb-1">Januari 2025</p>
+                    <p className="text-brand-ink/60 text-sm mb-3">Oleh:</p>
+                    <ul className="text-sm space-y-1 text-brand-ink/80 font-bold">
+                      <li>1. T. MUSTHOFA KF</li>
+                      <li>2. Hj. WAWAT HASNAWATI</li>
+                      <li>3. DIYAZ NAJIB</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <a 
+                    href="https://wa.me/6285950319228" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="w-full py-4 rounded-full bg-[#25D366] text-white flex items-center justify-center gap-3 font-bold hover:shadow-xl transition-all hover:scale-[1.02] active:scale-95"
+                  >
+                    <MessageCircle size={20} /> Hubungi Admin (WhatsApp)
+                  </a>
+                  <button
+                    onClick={() => setIsAboutModalOpen(false)}
+                    className="w-full py-4 rounded-full border border-brand-olive/10 text-brand-ink/60 hover:bg-brand-cream transition-all font-bold"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </motion.div>
             </div>
           )}
