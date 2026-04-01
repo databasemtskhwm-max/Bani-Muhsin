@@ -12,6 +12,7 @@ export interface FamilyMember {
   birthDate?: string;
   deathDate?: string;
   address?: string;
+  generation?: number;
   createdBy?: string;
   createdAt?: string;
   updatedBy?: string;

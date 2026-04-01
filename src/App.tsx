@@ -106,6 +106,23 @@ export default function App() {
   const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
   const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<FamilyMember[]>([]);
+  const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
+
+  const scrollToMember = (memberId: string) => {
+    // Wait for potential expansion in FamilyTreeInteractive
+    setTimeout(() => {
+      const element = document.getElementById(`member-${memberId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Add a temporary highlight effect
+        element.classList.add('ring-offset-4', 'ring-brand-olive', 'ring-4');
+        setTimeout(() => {
+          element.classList.remove('ring-offset-4');
+        }, 3000);
+      }
+    }, 300);
+  };
 
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -113,38 +130,33 @@ export default function App() {
 
     setSearchTerm(searchQuery);
 
-    // Find the member in the data
-    const findMember = (node: FamilyMember, term: string): FamilyMember | null => {
+    // Find all matching members in the data
+    const findAllMatches = (node: FamilyMember, term: string, gen: number = 1): FamilyMember[] => {
+      let matches: FamilyMember[] = [];
       const lowerTerm = term.toLowerCase();
+      
       if (node.name.toLowerCase().includes(lowerTerm) || (node.spouse?.toLowerCase().includes(lowerTerm))) {
-        return node;
+        matches.push({ ...node, generation: gen });
       }
+      
       if (node.children) {
         for (const child of node.children) {
-          const found = findMember(child, term);
-          if (found) return found;
+          matches = [...matches, ...findAllMatches(child, term, gen + 1)];
         }
       }
-      return null;
+      return matches;
     };
 
     if (familyData) {
-      const found = findMember(familyData, searchQuery);
-      if (found) {
-        // Wait for potential expansion in FamilyTreeInteractive
-        setTimeout(() => {
-          const element = document.getElementById(`member-${found.id}`);
-          if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Add a temporary highlight effect
-            element.classList.add('ring-offset-4', 'ring-brand-olive', 'ring-4');
-            setTimeout(() => {
-              element.classList.remove('ring-offset-4');
-            }, 3000);
-          }
-        }, 300);
-      } else {
+      const matches = findAllMatches(familyData, searchQuery);
+      
+      if (matches.length === 0) {
         alert(`Maaf, kata kunci "${searchQuery}" tidak ditemukan dalam silsilah keluarga.`);
+      } else if (matches.length === 1) {
+        scrollToMember(matches[0].id);
+      } else {
+        setSearchResults(matches);
+        setIsSearchModalOpen(true);
       }
     }
   };
@@ -856,6 +868,63 @@ export default function App() {
                     Batal
                   </button>
                 </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Search Results Modal */}
+        <AnimatePresence>
+          {isSearchModalOpen && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-lg w-full relative border border-brand-olive/10 p-8 md:p-10"
+              >
+                <button 
+                  onClick={() => setIsSearchModalOpen(false)}
+                  className="absolute top-6 right-6 p-2 rounded-full bg-brand-cream text-brand-ink/60 hover:text-brand-olive transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <h2 className="serif text-3xl mb-4">Hasil Pencarian</h2>
+                <p className="text-brand-ink/60 text-sm mb-8">Ditemukan {searchResults.length} anggota keluarga yang cocok dengan kata kunci "{searchTerm}". Silakan pilih salah satu:</p>
+
+                <div className="space-y-3 max-h-[50vh] overflow-y-auto mb-8 pr-2 custom-scrollbar">
+                  {searchResults.map((member) => (
+                    <button
+                      key={member.id}
+                      onClick={() => {
+                        scrollToMember(member.id);
+                        setIsSearchModalOpen(false);
+                      }}
+                      className="w-full flex items-center gap-4 p-4 rounded-2xl bg-brand-cream/30 border border-brand-olive/5 hover:border-brand-olive/30 hover:bg-brand-cream transition-all text-left group"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive group-hover:bg-brand-olive group-hover:text-white transition-colors">
+                        <Users size={18} />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="font-bold text-brand-ink">{member.name}</span>
+                        <span className="text-[10px] text-brand-ink/40 italic">
+                          {member.type === 'ancestor' ? 'Leluhur Utama' : 
+                           member.type === 'spouse' ? `Pasangan dari ${member.name}` : 
+                           `Generasi ke-${member.generation || '?'}`}
+                          {member.spouse && ` • Pasangan: ${member.spouse}`}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => setIsSearchModalOpen(false)}
+                  className="w-full py-4 rounded-full border border-brand-olive/10 text-brand-ink/60 hover:bg-brand-cream transition-all font-bold"
+                >
+                  Tutup
+                </button>
               </motion.div>
             </div>
           )}
