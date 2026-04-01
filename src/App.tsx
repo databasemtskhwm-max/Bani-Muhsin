@@ -78,8 +78,9 @@ export default function App() {
         
         if (userSnap.exists()) {
           let profile = userSnap.data() as UserProfile;
-          // Force admin role for the specific admin email
-          if (firebaseUser.email === 'databasemtskhwm@gmail.com' && (profile.role !== 'admin' || profile.status !== 'approved')) {
+          // Force admin role for the specific admin emails
+          const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com' || firebaseUser.email === 'admin@keluarga.com';
+          if (isMainAdmin && (profile.role !== 'admin' || profile.status !== 'approved')) {
             const updatedProfile = { ...profile, role: 'admin' as const, status: 'approved' as const };
             await setDoc(userRef, updatedProfile);
             profile = updatedProfile;
@@ -87,7 +88,7 @@ export default function App() {
           setUserProfile(profile);
         } else {
           // Create default profile
-          const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com';
+          const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com' || firebaseUser.email === 'admin@keluarga.com';
           const newProfile: UserProfile = {
             uid: firebaseUser.uid,
             email: firebaseUser.email || '',

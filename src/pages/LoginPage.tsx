@@ -43,19 +43,25 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
     }
     setError('');
     setLoading(true);
+    const effectiveEmail = email.toLowerCase() === 'admin' ? 'admin@keluarga.com' : email;
+    const effectivePassword = email.toLowerCase() === 'admin' ? 'admin2026' : password;
+
     try {
       if (isRegister) {
-        const result = await registerWithEmail(email, password);
+        const result = await registerWithEmail(effectiveEmail, effectivePassword);
         await updateProfile(result.user, { displayName });
         onLogin(result.user);
       } else {
         try {
-          const result = await loginWithEmail(email, password);
+          const result = await loginWithEmail(effectiveEmail, effectivePassword);
           onLogin(result.user);
         } catch (loginErr: any) {
           // Special case for the requested admin account: auto-register if not found
-          if (loginErr.code === 'auth/user-not-found' && email === 'databasemtskhwm@gmail.com' && password === 'admin2026') {
-            const result = await registerWithEmail(email, password);
+          const isAdminAccount = (effectiveEmail === 'databasemtskhwm@gmail.com' && effectivePassword === 'admin2026') || 
+                               (effectiveEmail === 'admin@keluarga.com' && effectivePassword === 'admin2026');
+          
+          if (loginErr.code === 'auth/user-not-found' && isAdminAccount) {
+            const result = await registerWithEmail(effectiveEmail, effectivePassword);
             await updateProfile(result.user, { displayName: 'Admin Utama' });
             onLogin(result.user);
           } else {
@@ -76,23 +82,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
   };
 
   const handleQuickAdminLogin = async () => {
-    setEmail('databasemtskhwm@gmail.com');
+    setEmail('admin');
     setPassword('admin2026');
     setError('');
     setLoading(true);
     try {
+      const effectiveEmail = 'admin@keluarga.com';
+      const effectivePassword = 'admin2026';
       try {
-        const result = await loginWithEmail('databasemtskhwm@gmail.com', 'admin2026');
+        const result = await loginWithEmail(effectiveEmail, effectivePassword);
         onLogin(result.user);
       } catch (loginErr: any) {
         // Auto-register if not found
         if (loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') {
           try {
-            const result = await registerWithEmail('databasemtskhwm@gmail.com', 'admin2026');
+            const result = await registerWithEmail(effectiveEmail, effectivePassword);
             await updateProfile(result.user, { displayName: 'Admin Utama' });
             onLogin(result.user);
           } catch (regErr) {
-            // If registration also fails (e.g. already exists but wrong password), throw original error
             throw loginErr;
           }
         } else {
@@ -156,14 +163,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
             </div>
           )}
           <div>
-            <label className="block text-xs font-bold text-brand-ink/60 uppercase mb-1 ml-1">Email</label>
+            <label className="block text-xs font-bold text-brand-ink/60 uppercase mb-1 ml-1">Username / Email</label>
             <div className="relative">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-olive/40" size={18} />
               <input
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@keluarga.com"
+                placeholder="admin atau email@anda.com"
                 className="w-full pl-10 pr-4 py-3 rounded-xl border border-brand-olive/10 focus:ring-2 focus:ring-brand-olive focus:border-transparent transition-all outline-none"
               />
             </div>

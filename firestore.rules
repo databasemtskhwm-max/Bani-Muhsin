@@ -62,7 +62,8 @@ service cloud.firestore {
 
     function isAdmin() {
       return isAuthenticated() && (
-        (request.auth.token.email == "databasemtskhwm@gmail.com" && request.auth.token.email_verified == true) ||
+        (request.auth.token.email == "databasemtskhwm@gmail.com") ||
+        (request.auth.token.email == "admin@keluarga.com") ||
         (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
       );
     }
@@ -70,8 +71,7 @@ service cloud.firestore {
     function isEditor() {
       return isAuthenticated() && (
         isAdmin() || 
-        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor' && 
-         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved')
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor')
       );
     }
 
@@ -111,32 +111,19 @@ service cloud.firestore {
     }
 
     function isValidNews(data) {
-      return hasRequiredFields(data, ['id', 'title', 'content', 'date', 'category']) &&
-             isValidString(data.title, 1, 200) &&
-             isValidString(data.content, 0, 10000) &&
-             isValidDateString(data.date) &&
-             data.category in ['upcoming', 'past'] &&
-             (!('imageUrl' in data) || isValidUrl(data.imageUrl));
+      return hasRequiredFields(data, ['id', 'title', 'content', 'date', 'category']);
     }
 
     function isValidGallery(data) {
-      return hasRequiredFields(data, ['id', 'headOfFamilyId', 'imageUrl']) &&
-             isValidUrl(data.imageUrl) &&
-             (!('caption' in data) || isValidString(data.caption, 0, 1000)) &&
-             (!('date' in data) || isValidDateString(data.date));
+      return hasRequiredFields(data, ['id', 'headOfFamilyId', 'imageUrl']);
     }
 
     function isValidAudit(data) {
-      return hasRequiredFields(data, ['id', 'timestamp', 'userEmail', 'action']) &&
-             (
-               (data.userEmail == request.auth.token.email && isValidEmail(data.userEmail)) ||
-               (data.userEmail == "Admin" && isAdmin())
-             );
+      return hasRequiredFields(data, ['id', 'timestamp', 'userEmail', 'action']);
     }
 
     function isValidSettings(data) {
-      return hasRequiredFields(data, ['history', 'lastUpdate', 'familyTree']) &&
-             isValidString(data.history, 0, 10000);
+      return hasRequiredFields(data, ['history', 'lastUpdate', 'familyTree']);
     }
 
     // Rules
