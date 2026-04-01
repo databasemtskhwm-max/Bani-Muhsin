@@ -396,9 +396,20 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col selection:bg-brand-olive selection:text-white">
-      {/* Navigation */}
-      <nav className="p-6 flex justify-between items-center border-b border-brand-olive/10">
+      <div className="min-h-screen flex flex-col selection:bg-brand-olive selection:text-white relative">
+        {/* Global Background Image */}
+        <div className="fixed inset-0 z-[-1]">
+          <img 
+            src="https://lh3.googleusercontent.com/d/1qHSjo3QC70Y0qO0wXVunqFfafaQAfXTo" 
+            alt="" 
+            className="w-full h-full object-cover opacity-40"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-brand-cream/60 backdrop-blur-[2px]"></div>
+        </div>
+
+        {/* Navigation */}
+      <nav className="sticky top-0 z-50 p-6 flex justify-between items-center border-b border-brand-olive/10 bg-white/40 backdrop-blur-md">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigateTo('/')}>
           <TreeDeciduous className="text-brand-olive" size={24} />
           <span className="serif text-2xl font-semibold tracking-tight">Bani Muhsin</span>
@@ -458,12 +469,12 @@ export default function App() {
         <section className="relative h-[600px] md:h-[700px] flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
             <img 
-              src="https://drive.google.com/uc?export=view&id=1qHSjo3QC70Y0qO0wXVunqFfafaQAfXTo" 
+              src="https://lh3.googleusercontent.com/d/1qHSjo3QC70Y0qO0wXVunqFfafaQAfXTo" 
               alt="Family Background" 
-              className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
+              className="w-full h-full object-cover hover:scale-105 transition-all duration-1000"
               referrerPolicy="no-referrer"
             />
-            <div className="absolute inset-0 bg-gradient-to-b from-brand-ink/60 via-brand-ink/40 to-brand-ink/80"></div>
+            <div className="absolute inset-0 bg-gradient-to-b from-brand-ink/40 via-transparent to-brand-ink/60"></div>
           </div>
 
           <div className="relative z-10 text-center px-6 max-w-4xl">
@@ -472,16 +483,20 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8 }}
             >
-              <div className="inline-block px-4 py-1.5 rounded-full bg-brand-olive/20 border border-brand-olive/30 text-brand-olive text-xs font-bold uppercase tracking-widest mb-6">
+              <div className="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold uppercase tracking-widest mb-6 shadow-xl">
                 Keluarga Besar Bani KH. Wahab Muhsin
               </div>
-              <h1 className="serif text-5xl md:text-7xl text-white font-bold leading-tight mb-8">
+              <h1 className="serif text-5xl md:text-8xl text-white font-bold leading-tight mb-8 drop-shadow-2xl">
                 Menjaga Silaturahmi, <br/>
-                <span className="italic font-light text-brand-olive">Merajut Masa Depan</span>
+                <span className="italic font-light">Merajut Masa Depan</span>
               </h1>
-              <p className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
-                Platform digital untuk mempererat tali persaudaraan dan melestarikan sejarah keluarga besar Bani KH. Wahab Muhsin.
-              </p>
+              
+              <div className="inline-block bg-white/10 backdrop-blur-lg border border-white/20 rounded-3xl px-8 py-4 max-w-2xl mx-auto mb-12 shadow-2xl relative overflow-hidden group">
+                <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-50"></div>
+                <p className="relative z-10 text-white text-lg md:text-xl leading-relaxed font-light drop-shadow-sm">
+                  Platform digital untuk mempererat tali persaudaraan dan melestarikan sejarah keluarga besar Bani KH. Wahab Muhsin.
+                </p>
+              </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <a href="#tree" className="bg-brand-olive text-white px-8 py-4 rounded-full text-sm font-medium hover:shadow-lg hover:shadow-brand-olive/20 transition-all">
                   Lihat Silsilah Keluarga
@@ -499,56 +514,57 @@ export default function App() {
           <div className="max-w-6xl mx-auto">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="max-w-6xl mx-auto mb-16 grid grid-cols-2 md:grid-cols-6 gap-4 px-4"
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.8 }}
+              className="grid grid-cols-2 md:grid-cols-6 gap-6"
             >
-              <div className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border border-brand-olive/10 shadow-sm hover:shadow-md transition-all group">
-                <div className="text-brand-olive mb-2 group-hover:scale-110 transition-transform flex justify-center">
-                  <Users size={24} />
+              <div className="bg-white/40 backdrop-blur-lg p-8 rounded-[2rem] border border-white/40 shadow-xl shadow-brand-olive/5 hover:shadow-2xl hover:-translate-y-1 transition-all group">
+                <div className="text-brand-olive mb-4 group-hover:scale-110 transition-transform flex justify-center">
+                  <Users size={32} />
                 </div>
-                <div className="text-3xl font-bold serif text-brand-ink">{stats.total}</div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold opacity-50">Total Anggota</div>
+                <div className="text-4xl font-bold serif text-brand-ink mb-1">{stats.total}</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40">Total Anggota</div>
               </div>
               
-              <div className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border border-brand-olive/10 shadow-sm hover:shadow-md transition-all group">
-                <div className="text-blue-600 mb-2 group-hover:scale-110 transition-transform flex justify-center">
-                  <TreeDeciduous size={24} />
+              <div className="bg-white/40 backdrop-blur-lg p-8 rounded-[2rem] border border-white/40 shadow-xl shadow-brand-olive/5 hover:shadow-2xl hover:-translate-y-1 transition-all group">
+                <div className="text-blue-600 mb-4 group-hover:scale-110 transition-transform flex justify-center">
+                  <TreeDeciduous size={32} />
                 </div>
-                <div className="text-3xl font-bold serif text-brand-ink">{stats.gen2}</div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold opacity-50">Anak</div>
+                <div className="text-4xl font-bold serif text-brand-ink mb-1">{stats.gen2}</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40">Anak</div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border border-brand-olive/10 shadow-sm hover:shadow-md transition-all group">
-                <div className="text-emerald-600 mb-2 group-hover:scale-110 transition-transform flex justify-center">
-                  <Heart size={24} />
+              <div className="bg-white/40 backdrop-blur-lg p-8 rounded-[2rem] border border-white/40 shadow-xl shadow-brand-olive/5 hover:shadow-2xl hover:-translate-y-1 transition-all group">
+                <div className="text-emerald-600 mb-4 group-hover:scale-110 transition-transform flex justify-center">
+                  <Heart size={32} />
                 </div>
-                <div className="text-3xl font-bold serif text-brand-ink">{stats.gen3}</div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold opacity-50">Cucu</div>
+                <div className="text-4xl font-bold serif text-brand-ink mb-1">{stats.gen3}</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40">Cucu</div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border border-brand-olive/10 shadow-sm hover:shadow-md transition-all group">
-                <div className="text-amber-600 mb-2 group-hover:scale-110 transition-transform flex justify-center">
-                  <History size={24} />
+              <div className="bg-white/40 backdrop-blur-lg p-8 rounded-[2rem] border border-white/40 shadow-xl shadow-brand-olive/5 hover:shadow-2xl hover:-translate-y-1 transition-all group">
+                <div className="text-amber-600 mb-4 group-hover:scale-110 transition-transform flex justify-center">
+                  <History size={32} />
                 </div>
-                <div className="text-3xl font-bold serif text-brand-ink">{stats.gen4}</div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold opacity-50">Cicit</div>
+                <div className="text-4xl font-bold serif text-brand-ink mb-1">{stats.gen4}</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40">Cicit</div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-sm p-6 rounded-3xl border border-brand-olive/10 shadow-sm hover:shadow-md transition-all group">
-                <div className="text-rose-600 mb-2 group-hover:scale-110 transition-transform flex justify-center">
-                  <Users size={24} />
+              <div className="bg-white/40 backdrop-blur-lg p-8 rounded-[2rem] border border-white/40 shadow-xl shadow-brand-olive/5 hover:shadow-2xl hover:-translate-y-1 transition-all group">
+                <div className="text-rose-600 mb-4 group-hover:scale-110 transition-transform flex justify-center">
+                  <Users size={32} />
                 </div>
-                <div className="text-3xl font-bold serif text-brand-ink">{stats.gen5}</div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold opacity-50">Buyut+</div>
+                <div className="text-4xl font-bold serif text-brand-ink mb-1">{stats.gen5}</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold opacity-40">Buyut+</div>
               </div>
 
-              <div className="bg-emerald-50/80 backdrop-blur-sm p-6 rounded-3xl border border-emerald-200/50 shadow-sm hover:shadow-md transition-all group col-span-2 md:col-span-1">
-                <div className="text-emerald-800 mb-2 group-hover:scale-110 transition-transform flex justify-center">
-                  <Flower2 size={24} />
+              <div className="bg-emerald-900/10 backdrop-blur-lg p-8 rounded-[2rem] border border-emerald-900/20 shadow-xl shadow-emerald-900/5 hover:shadow-2xl hover:-translate-y-1 transition-all group col-span-2 md:col-span-1">
+                <div className="text-emerald-800 mb-4 group-hover:scale-110 transition-transform flex justify-center">
+                  <Flower2 size={32} />
                 </div>
-                <div className="text-3xl font-bold serif text-emerald-900">{stats.deceased}</div>
-                <div className="text-[10px] uppercase tracking-widest font-semibold text-emerald-900/50">Almarhum/ah</div>
+                <div className="text-4xl font-bold serif text-emerald-950 mb-1">{stats.deceased}</div>
+                <div className="text-[10px] uppercase tracking-[0.2em] font-bold text-emerald-900/40">Almarhum/ah</div>
               </div>
             </motion.div>
 
@@ -561,35 +577,36 @@ export default function App() {
         </section>
 
         {/* Spiritual Foundation Section */}
-        <section className="px-6 py-24 bg-white/60 border-y border-brand-olive/10">
-          <div className="max-w-4xl mx-auto text-center">
+        <section className="px-6 py-32 relative overflow-hidden">
+          <div className="absolute inset-0 bg-white/30 backdrop-blur-sm"></div>
+          <div className="max-w-5xl mx-auto text-center relative z-10">
             <motion.div
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
+              initial={{ opacity: 0, scale: 0.95 }}
+              whileInView={{ opacity: 1, scale: 1 }}
               viewport={{ once: true }}
-              transition={{ duration: 1 }}
-              className="space-y-12"
+              transition={{ duration: 1.2 }}
+              className="space-y-16 p-12 rounded-[3rem] border border-white/50 bg-white/20 backdrop-blur-xl shadow-2xl"
             >
-              <div className="serif text-3xl md:text-4xl text-brand-olive opacity-80">
+              <div className="serif text-4xl md:text-5xl text-brand-olive opacity-90 tracking-widest">
                 بسم الله الرحمن الرحيم
               </div>
               
-              <div className="space-y-6">
-                <p className="serif text-2xl md:text-3xl leading-loose text-brand-ink" dir="rtl">
+              <div className="space-y-8">
+                <p className="serif text-3xl md:text-5xl leading-[1.6] text-brand-ink" dir="rtl">
                   وَالَّذِيْنَ يَنْقُضُوْنَ عَهْدَ اللّٰهِ مِنْ ۢ بَعْدِ مِيْثَاقِهٖ وَيَقْطَعُوْنَ مَآ اَمَرَ اللّٰهُ بِهٖٓ اَنْ يُّوصَلَ وَيُفْسِدُوْنَ فِى الْاَرْضِۙ اُولٰۤىِٕكَ لَهُمُ اللَّعْنَةُ وَلَهُمْ سُوْۤءُ الدَّارِ
                 </p>
-                <p className="italic text-brand-ink/70 leading-relaxed max-w-3xl mx-auto">
+                <p className="italic text-brand-ink/80 text-xl md:text-2xl leading-relaxed max-w-4xl mx-auto font-light">
                   “ Orang-orang yang melanggar perjanjian (dengan) Allah setelah diteguhkan, memutuskan apa yang diperintahkan Allah untuk disambungkan (seperti silaturahmi), dan berbuat kerusakan di bumi; mereka itulah orang-orang yang mendapat laknat dan bagi mereka tempat kediaman yang buruk (Jahanam) ”
                 </p>
               </div>
 
-              <div className="w-16 h-px bg-brand-olive/20 mx-auto"></div>
+              <div className="w-24 h-px bg-brand-olive/30 mx-auto"></div>
 
-              <div className="space-y-6">
-                <p className="serif text-xl md:text-2xl text-brand-ink" dir="rtl">
+              <div className="space-y-8">
+                <p className="serif text-2xl md:text-4xl text-brand-ink" dir="rtl">
                   قال رسول الله ﷺ : لا يدخل الجنة قاطع ( متفق عليه )
                 </p>
-                <p className="italic text-brand-ink/70 leading-relaxed">
+                <p className="italic text-brand-ink/80 text-xl md:text-2xl leading-relaxed font-light">
                   “Tidak akan masuk surga orang yang memutuskan silaturahmi”
                 </p>
               </div>
@@ -625,13 +642,13 @@ export default function App() {
         </section>
 
         {/* Family Tree Section */}
-        <section id="tree" className="px-6 py-24 max-w-7xl mx-auto">
-          <div className="mb-16 text-center">
-            <h2 className="serif text-4xl md:text-5xl mb-4">Pohon Silsilah</h2>
-            <div className="w-24 h-px bg-brand-olive/30 mx-auto mb-6"></div>
-            <p className="text-brand-ink/60 mb-2">Klik dan telusuri garis keturunan Bani Muhsin</p>
+        <section id="tree" className="px-6 py-32 max-w-7xl mx-auto relative">
+          <div className="mb-20 text-center">
+            <h2 className="serif text-5xl md:text-7xl mb-6 tracking-tight">Pohon Silsilah</h2>
+            <div className="w-32 h-1 bg-brand-olive/20 mx-auto mb-8 rounded-full"></div>
+            <p className="text-brand-ink/60 text-lg mb-4 font-light">Klik dan telusuri garis keturunan Bani Muhsin</p>
             {lastUpdate && (
-              <p className="text-[10px] uppercase tracking-widest text-brand-olive/50 font-medium mb-6">
+              <p className="text-[11px] uppercase tracking-[0.3em] text-brand-olive/60 font-bold mb-10">
                 Terakhir diperbarui: {new Date(lastUpdate).toLocaleString('id-ID', { 
                   day: 'numeric', 
                   month: 'long', 
@@ -644,12 +661,14 @@ export default function App() {
             
             <button 
               onClick={downloadPDF}
-              className="inline-flex items-center gap-2 bg-white border border-brand-olive/20 text-brand-olive px-6 py-3 rounded-full text-sm font-medium hover:bg-brand-olive hover:text-white transition-all shadow-sm hover:shadow-md"
+              className="inline-flex items-center gap-3 bg-white/60 backdrop-blur-md border border-brand-olive/20 text-brand-olive px-10 py-4 rounded-full text-sm font-bold hover:bg-brand-olive hover:text-white transition-all shadow-xl shadow-brand-olive/5 hover:shadow-2xl"
             >
-              <Download size={16} /> Unduh Dokumen Silsilah (PDF)
+              <Download size={18} /> Unduh Dokumen Silsilah (PDF)
             </button>
           </div>
-          <FamilyTreeInteractive data={familyData} />
+          <div className="bg-white/30 backdrop-blur-md p-4 md:p-12 rounded-[3rem] border border-white/50 shadow-2xl">
+            <FamilyTreeInteractive data={familyData} />
+          </div>
         </section>
 
         {/* Hidden PDF Template */}
@@ -736,13 +755,14 @@ export default function App() {
         </div>
 
         {/* History Section */}
-        <section id="history" className="px-6 py-24 bg-brand-olive text-white">
-          <div className="max-w-4xl mx-auto">
-            <span className="text-xs uppercase tracking-[0.3em] font-semibold opacity-60 mb-4 block">
+        <section id="history" className="px-6 py-32 relative overflow-hidden">
+          <div className="absolute inset-0 bg-brand-olive/90 backdrop-blur-md"></div>
+          <div className="max-w-5xl mx-auto relative z-10 text-white">
+            <span className="text-xs uppercase tracking-[0.5em] font-bold text-white/50 mb-6 block">
               Kisah Kami
             </span>
-            <h2 className="serif text-4xl md:text-6xl mb-12 italic">Asal Usul Bani Muhsin</h2>
-            <div className="space-y-8 text-lg opacity-90 leading-relaxed whitespace-pre-wrap">
+            <h2 className="serif text-5xl md:text-8xl mb-16 italic font-light">Asal Usul Bani Muhsin</h2>
+            <div className="space-y-10 text-xl md:text-2xl text-white/90 leading-[1.8] font-light whitespace-pre-wrap">
               {historyText || "Memuat sejarah..."}
             </div>
           </div>
