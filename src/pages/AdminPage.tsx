@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { FamilyMember, AuditEntry, NewsItem, GalleryItem, UserProfile } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Newspaper, Calendar, User as UserIcon, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield } from 'lucide-react';
+import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -57,7 +57,6 @@ interface AdminPageProps {
 export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogout }) => {
   const [data, setData] = useState<FamilyMember | null>(null);
   const [history, setHistory] = useState<string>('');
-  const [news, setNews] = useState<NewsItem[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -87,18 +86,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     }, (error) => {
       handleFirestoreError(error, OperationType.GET, 'settings/global');
       setLoading(false);
-    });
-
-    // Listen to News
-    const unsubscribeNews = onSnapshot(collection(db, 'news'), (snapshot) => {
-      const newsData = snapshot.docs.map(doc => doc.data() as NewsItem);
-      if (newsData.length > 0) {
-        setNews(newsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-      } else {
-        fetch('/api/news').then(res => res.json()).then(nData => setNews(nData));
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'news');
     });
 
     // Listen to Gallery
@@ -135,7 +122,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
 
     return () => {
       unsubscribeSettings();
-      unsubscribeNews();
       unsubscribeGallery();
       unsubscribeUsers();
       unsubscribeAudit();
@@ -159,18 +145,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         throw new Error('Gagal menyimpan pengaturan global saat migrasi.');
       }
 
-      // 2. Save News
-      for (const item of news) {
-        try {
-          await setDoc(doc(db, 'news', item.id), item);
-        } catch (err) {
-          console.error('Migration error (news):', item.id, err);
-          handleFirestoreError(err, OperationType.WRITE, 'news/' + item.id);
-          throw new Error(`Gagal menyimpan berita saat migrasi: ${item.title}`);
-        }
-      }
-
-      // 3. Save Gallery
+      // 2. Save Gallery
       for (const item of gallery) {
         try {
           await setDoc(doc(db, 'gallery', item.id), item);
@@ -181,7 +156,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         }
       }
 
-      // 4. Add Audit Log
+      // 3. Add Audit Log
       const auditId = Math.random().toString(36).substring(2, 11);
       try {
         await setDoc(doc(db, 'auditLog', auditId), {
@@ -224,16 +199,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         throw new Error('Gagal menyimpan pengaturan global.');
       }
 
-      // Update News and Gallery (actually save them now)
-      for (const item of news) {
-        try {
-          await setDoc(doc(db, 'news', item.id), item);
-        } catch (err) {
-          console.error('Error saving news item:', item.id, err);
-          handleFirestoreError(err, OperationType.WRITE, 'news/' + item.id);
-          throw new Error(`Gagal menyimpan berita: ${item.title}`);
-        }
-      }
+      // Update Gallery (actually save them now)
       for (const item of gallery) {
         try {
           await setDoc(doc(db, 'gallery', item.id), item);
@@ -252,7 +218,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           timestamp: timestamp,
           userEmail: editorName,
           action: 'UPDATE_ALL',
-          details: 'Updated family tree, history, news, and gallery'
+          details: 'Updated family tree, history, and gallery'
         });
       } catch (err) {
         console.error('Error saving audit log:', err);
@@ -376,44 +342,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     };
     findAndRemove(newData);
     setData(newData);
-  };
-
-  const addNews = () => {
-    const newNews: NewsItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      title: 'Judul Berita Baru',
-      content: 'Isi berita di sini...',
-      date: new Date().toISOString().split('T')[0],
-      category: 'upcoming',
-      author: editorName,
-      imageUrl: 'https://picsum.photos/seed/' + Math.random().toString(36).substr(2, 5) + '/1200/800'
-    };
-    setNews([newNews, ...news]);
-  };
-
-  const updateNewsItem = (id: string, updates: Partial<NewsItem>) => {
-    setNews(news.map(item => item.id === id ? { ...item, ...updates } : item));
-  };
-
-  const removeNews = async (id: string) => {
-    if (!window.confirm('Hapus berita ini?')) return;
-    try {
-      await deleteDoc(doc(db, 'news', id));
-      setNews(news.filter(item => item.id !== id));
-      
-      // Log deletion
-      const auditId = Math.random().toString(36).substring(2, 11);
-      await setDoc(doc(db, 'auditLog', auditId), {
-        id: auditId,
-        timestamp: new Date().toISOString(),
-        userEmail: editorName,
-        action: 'DELETE_NEWS',
-        details: `Menghapus berita dengan ID: ${id}`
-      });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'news/' + id);
-      alert('Gagal menghapus berita dari database.');
-    }
   };
 
   const addGalleryItem = () => {
@@ -880,90 +808,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           </div>
 
           <div className="space-y-8">
-            <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="serif text-2xl">Berita & Kegiatan</h2>
-                <button 
-                  onClick={addNews}
-                  className="p-2 bg-brand-olive text-white rounded-full hover:shadow-md transition-all"
-                >
-                  <Plus size={20} />
-                </button>
-              </div>
-              
-              <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
-                {news.length === 0 ? (
-                  <p className="text-sm text-brand-ink/40 italic text-center py-8">Belum ada berita.</p>
-                ) : (
-                  news.map((item) => (
-                    <div key={item.id} className="bg-white p-4 rounded-2xl border border-brand-olive/5 shadow-sm space-y-3">
-                      <input
-                        type="text"
-                        value={item.title}
-                        onChange={(e) => updateNewsItem(item.id, { title: e.target.value })}
-                        className="w-full font-bold text-sm border-none p-0 focus:ring-0"
-                        placeholder="Judul Berita"
-                      />
-                      <div className="flex gap-2">
-                        <div className="flex items-center text-[10px] text-brand-ink/40 bg-brand-cream px-2 py-1 rounded-lg">
-                          <Calendar size={10} className="mr-1" />
-                          <input
-                            type="date"
-                            value={item.date}
-                            onChange={(e) => updateNewsItem(item.id, { date: e.target.value })}
-                            className="bg-transparent border-none p-0 focus:ring-0 text-[10px]"
-                          />
-                        </div>
-                        <select
-                          value={item.category}
-                          onChange={(e) => updateNewsItem(item.id, { category: e.target.value as any })}
-                          className="text-[10px] bg-brand-cream border-none rounded-lg px-2 py-1 focus:ring-0"
-                        >
-                          <option value="upcoming">Akan Datang</option>
-                          <option value="past">Sudah Lewat</option>
-                        </select>
-                      </div>
-                      <textarea
-                        value={item.content}
-                        onChange={(e) => updateNewsItem(item.id, { content: e.target.value })}
-                        className="w-full text-xs border-none p-0 focus:ring-0 min-h-[60px] bg-transparent"
-                        placeholder="Isi berita..."
-                      />
-                      <div className="flex justify-between items-center pt-2 border-t border-brand-olive/5">
-                        <span className="text-[10px] text-brand-ink/40 flex items-center">
-                          <UserIcon size={10} className="mr-1" /> {item.author}
-                        </span>
-                        <button 
-                          onClick={() => removeNews(item.id)}
-                          className="text-rose-500 hover:text-rose-700 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                      <div className="space-y-2">
-                        <FileUploadButton onUpload={(url) => updateNewsItem(item.id, { imageUrl: url })} />
-                        {item.imageUrl && (
-                          <div className="relative h-32 rounded-xl overflow-hidden border border-brand-olive/10">
-                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                            <button 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                updateNewsItem(item.id, { imageUrl: '' });
-                              }}
-                              className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors shadow-lg z-10"
-                              title="Hapus Foto"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
             <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="serif text-2xl">Galeri Keluarga</h2>

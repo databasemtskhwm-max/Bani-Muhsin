@@ -56,9 +56,7 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [familyData, setFamilyData] = useState<FamilyMember | null>(null);
   const [historyText, setHistoryText] = useState<string>('');
-  const [news, setNews] = useState<NewsItem[]>([]);
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
-  const [currentSlide, setCurrentSlide] = useState(0);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(window.location.pathname === '/admin');
   const [isLogin, setIsLogin] = useState(window.location.pathname === '/login');
@@ -122,18 +120,6 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'settings/global');
     });
 
-    // Listen to News
-    const unsubscribeNews = onSnapshot(collection(db, 'news'), (snapshot) => {
-      const newsData = snapshot.docs.map(doc => doc.data() as NewsItem);
-      if (newsData.length > 0) {
-        setNews(newsData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
-      } else {
-        fetch('/api/news').then(res => res.json()).then(nData => setNews(nData));
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'news');
-    });
-
     // Listen to Gallery
     const unsubscribeGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
       const galleryData = snapshot.docs.map(doc => doc.data() as GalleryItem);
@@ -153,22 +139,13 @@ export default function App() {
     };
     window.addEventListener('popstate', handlePopState);
 
-    // Auto-advance news slides
-    const slideInterval = setInterval(() => {
-      if (news.length > 0) {
-        setCurrentSlide(prev => (prev + 1) % news.length);
-      }
-    }, 5000);
-
     return () => {
       unsubscribeAuth();
       unsubscribeSettings();
-      unsubscribeNews();
       unsubscribeGallery();
       window.removeEventListener('popstate', handlePopState);
-      clearInterval(slideInterval);
     };
-  }, [news.length]);
+  }, []);
 
   const navigateTo = (path: string) => {
     window.history.pushState({}, '', path);
@@ -357,65 +334,65 @@ export default function App() {
     return (
       <ErrorBoundary>
         <div className="min-h-screen bg-brand-cream p-6 md:p-12">
-        <div className="max-w-7xl mx-auto">
-          <div className="flex justify-between items-center mb-12">
-            <div>
-              <button onClick={() => navigateTo('/')} className="flex items-center text-brand-olive hover:underline mb-2 text-sm">
-                <ArrowLeft size={16} className="mr-1" /> Kembali
-              </button>
-              <h1 className="serif text-5xl font-bold">Galeri Keluarga</h1>
-              <p className="text-brand-ink/60 mt-2 italic">Momen berharga Bani Muhsin perkepala keluarga</p>
+          <div className="max-w-7xl mx-auto">
+            <div className="flex justify-between items-center mb-12">
+              <div>
+                <button onClick={() => navigateTo('/')} className="flex items-center text-brand-olive hover:underline mb-2 text-sm">
+                  <ArrowLeft size={16} className="mr-1" /> Kembali
+                </button>
+                <h1 className="serif text-5xl font-bold">Galeri Keluarga</h1>
+                <p className="text-brand-ink/60 mt-2 italic">Momen berharga Bani Muhsin perkepala keluarga</p>
+              </div>
+              <ImageIcon size={48} className="text-brand-olive/20" />
             </div>
-            <ImageIcon size={48} className="text-brand-olive/20" />
-          </div>
 
-          {Object.keys(groupedGallery).length === 0 ? (
-            <div className="text-center py-20 bg-white/50 rounded-3xl border border-brand-olive/10">
-              <ImageIcon size={48} className="mx-auto text-brand-olive/20 mb-4" />
-              <p className="serif text-2xl text-brand-olive/40 italic">Belum ada foto di galeri.</p>
-            </div>
-          ) : (
-            <div className="space-y-16">
-              {Object.entries(groupedGallery).map(([id, group]) => (
-                <div key={id} className="space-y-6">
-                  <div className="flex items-center gap-4">
-                    <h2 className="serif text-3xl font-semibold text-brand-olive">{group.name}</h2>
-                    <div className="flex-grow h-px bg-brand-olive/10"></div>
+            {Object.keys(groupedGallery).length === 0 ? (
+              <div className="text-center py-20 bg-white/50 rounded-3xl border border-brand-olive/10">
+                <ImageIcon size={48} className="mx-auto text-brand-olive/20 mb-4" />
+                <p className="serif text-2xl text-brand-olive/40 italic">Belum ada foto di galeri.</p>
+              </div>
+            ) : (
+              <div className="space-y-16">
+                {Object.entries(groupedGallery).map(([id, group]) => (
+                  <div key={id} className="space-y-6">
+                    <div className="flex items-center gap-4">
+                      <h2 className="serif text-3xl font-semibold text-brand-olive">{group.name}</h2>
+                      <div className="flex-grow h-px bg-brand-olive/10"></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {group.items.map((item) => (
+                        <motion.div
+                          key={item.id}
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          whileInView={{ opacity: 1, scale: 1 }}
+                          viewport={{ once: true }}
+                          className="bg-white p-4 rounded-3xl shadow-sm border border-brand-olive/5 group hover:shadow-xl transition-all"
+                        >
+                          <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-4">
+                            <img 
+                              src={item.imageUrl} 
+                              alt={item.caption} 
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                              referrerPolicy="no-referrer"
+                            />
+                          </div>
+                          <h3 className="font-bold text-brand-ink mb-1">{item.caption}</h3>
+                          <div className="flex justify-between items-center text-[10px] text-brand-ink/40 uppercase tracking-widest">
+                            <span>{new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+                            <span>Oleh: {item.uploadedBy}</span>
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                    {group.items.map((item) => (
-                      <motion.div
-                        key={item.id}
-                        initial={{ opacity: 0, scale: 0.95 }}
-                        whileInView={{ opacity: 1, scale: 1 }}
-                        viewport={{ once: true }}
-                        className="bg-white p-4 rounded-3xl shadow-sm border border-brand-olive/5 group hover:shadow-xl transition-all"
-                      >
-                        <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-4">
-                          <img 
-                            src={item.imageUrl} 
-                            alt={item.caption} 
-                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                        <h3 className="font-bold text-brand-ink mb-1">{item.caption}</h3>
-                        <div className="flex justify-between items-center text-[10px] text-brand-ink/40 uppercase tracking-widest">
-                          <span>{new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                          <span>Oleh: {item.uploadedBy}</span>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    </ErrorBoundary>
-  );
-}
+      </ErrorBoundary>
+    );
+  }
 
   return (
     <ErrorBoundary>
@@ -428,7 +405,6 @@ export default function App() {
         </div>
         <div className="hidden md:flex gap-8 text-sm uppercase tracking-widest font-medium opacity-70 items-center">
           <a href="#history" className="hover:opacity-100 transition-opacity">Sejarah</a>
-          <a href="#news" className="hover:opacity-100 transition-opacity">Berita</a>
           <a href="#tree" className="hover:opacity-100 transition-opacity">Silsilah</a>
           <button onClick={() => navigateTo('/gallery')} className="hover:opacity-100 transition-opacity">Galeri</button>
           {user && userProfile && (userProfile.role === 'admin' || (userProfile.role === 'editor' && userProfile.status === 'approved')) ? (
@@ -478,117 +454,49 @@ export default function App() {
       </nav>
 
       <main className="flex-grow">
-        {/* Hero Slideshow Section */}
-        <section className="w-full bg-brand-olive/5 pt-12 px-6 pb-12">
-          <div className="max-w-4xl mx-auto">
-            <div className="relative group h-[400px] md:h-[500px] rounded-3xl overflow-hidden shadow-2xl border border-brand-olive/10 bg-white">
-              <AnimatePresence mode="wait">
-                {news.length > 0 ? (
-                  <motion.div
-                    key={currentSlide}
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    transition={{ duration: 0.6 }}
-                    className="absolute inset-0"
-                  >
-                    <div className="relative w-full h-full">
-                      <img 
-                        src={news[currentSlide].imageUrl || "https://picsum.photos/seed/family/1200/800"} 
-                        alt={news[currentSlide].title}
-                        className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
-                        referrerPolicy="no-referrer"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-                      <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12 text-white">
-                        <motion.div
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.3 }}
-                        >
-                          <span className="text-[10px] uppercase tracking-[0.3em] font-bold opacity-70 mb-2 block">
-                            {news[currentSlide].category === 'upcoming' ? 'Kegiatan Mendatang' : 'Kegiatan Terlaksana'}
-                          </span>
-                          <h2 className="serif text-3xl md:text-5xl font-light mb-4 leading-tight">
-                            {news[currentSlide].title}
-                          </h2>
-                          <p className="text-sm md:text-base opacity-80 max-w-xl line-clamp-2 md:line-clamp-3">
-                            {news[currentSlide].content}
-                          </p>
-                          <div className="mt-6 flex items-center gap-4">
-                            <div className="w-12 h-px bg-white/30"></div>
-                            <span className="text-xs opacity-60 tracking-widest uppercase">{new Date(news[currentSlide].date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                          </div>
-                        </motion.div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.div
-                    key="fallback"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="absolute inset-0 flex items-center justify-center bg-brand-olive/5"
-                  >
-                    <div className="text-center p-12">
-                      <TreeDeciduous size={48} className="mx-auto text-brand-olive/20 mb-4" />
-                      <h2 className="serif text-3xl text-brand-olive/40 italic">Silsilah Bani Muhsin</h2>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
+        {/* Hero Section */}
+        <section className="relative h-[600px] md:h-[700px] flex items-center justify-center overflow-hidden">
+          <div className="absolute inset-0 z-0">
+            <img 
+              src="https://ais-pre-nvg6imdqiebeqyti2udo2g-482634215128.asia-southeast1.run.app/background.jpg" 
+              alt="Family Background" 
+              className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-b from-brand-ink/60 via-brand-ink/40 to-brand-ink/80"></div>
+          </div>
 
-              {/* Navigation Arrows */}
-              {news.length > 1 && (
-                <>
-                  <button 
-                    onClick={() => setCurrentSlide(prev => (prev - 1 + news.length) % news.length)}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20 transition-all z-10 opacity-0 group-hover:opacity-100"
-                  >
-                    <ChevronLeft size={24} />
-                  </button>
-                  <button 
-                    onClick={() => setCurrentSlide(prev => (prev + 1) % news.length)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20 transition-all z-10 opacity-0 group-hover:opacity-100"
-                  >
-                    <ChevronRight size={24} />
-                  </button>
-                </>
-              )}
-
-              {/* Indicators */}
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-10">
-                {news.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setCurrentSlide(i)}
-                    className={`h-1 transition-all duration-500 rounded-full ${i === currentSlide ? 'w-8 bg-white' : 'w-2 bg-white/30'}`}
-                  />
-                ))}
+          <div className="relative z-10 text-center px-6 max-w-4xl">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <div className="inline-block px-4 py-1.5 rounded-full bg-brand-olive/20 border border-brand-olive/30 text-brand-olive text-xs font-bold uppercase tracking-widest mb-6">
+                Keluarga Besar Bani KH. Wahab Muhsin
               </div>
-            </div>
+              <h1 className="serif text-5xl md:text-7xl text-white font-bold leading-tight mb-8">
+                Menjaga Silaturahmi, <br/>
+                <span className="italic font-light text-brand-olive">Merajut Masa Depan</span>
+              </h1>
+              <p className="text-white/80 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+                Platform digital untuk mempererat tali persaudaraan dan melestarikan sejarah keluarga besar Bani KH. Wahab Muhsin.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="#tree" className="bg-brand-olive text-white px-8 py-4 rounded-full text-sm font-medium hover:shadow-lg hover:shadow-brand-olive/20 transition-all">
+                  Lihat Silsilah Keluarga
+                </a>
+                <a href="#history" className="border border-white/20 text-white px-8 py-4 rounded-full text-sm font-medium hover:bg-white/5 transition-all">
+                  Baca Sejarah
+                </a>
+              </div>
+            </motion.div>
           </div>
         </section>
 
-        {/* Hero Section */}
+        {/* Dashboard Stats */}
         <section className="px-6 py-20 md:py-32 max-w-7xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8 }}
-          >
-            <span className="text-xs uppercase tracking-[0.3em] font-semibold text-brand-olive/60 mb-4 block">
-              Warisan & Tradisi
-            </span>
-            <h1 className="serif text-6xl md:text-8xl font-light leading-tight mb-8">
-              Menjaga Akar, <br />
-              <span className="italic">Menumbuhkan Masa Depan</span>
-            </h1>
-            <p className="max-w-2xl mx-auto text-lg text-brand-ink/70 leading-relaxed mb-12">
-              Selamat datang di kediaman digital keluarga Bani Muhsin. Tempat di mana sejarah bertemu masa kini, dan setiap nama adalah sebuah cerita tentang cinta dan keteguhan.
-            </p>
-
-            {/* Dashboard Stats */}
+          <div className="max-w-6xl mx-auto">
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -648,96 +556,6 @@ export default function App() {
               <a href="#tree" className="bg-brand-olive text-white px-8 py-4 rounded-full text-sm font-medium hover:shadow-lg transition-all">
                 Lihat Silsilah
               </a>
-              <a href="#news" className="border border-brand-olive/20 px-8 py-4 rounded-full text-sm font-medium hover:bg-brand-olive/5 transition-all">
-                Berita & Kegiatan
-              </a>
-            </div>
-          </motion.div>
-        </section>
-
-        {/* News Section */}
-        <section id="news" className="px-6 py-24 bg-brand-cream/50">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-end mb-12 gap-6">
-              <div className="max-w-2xl">
-                <span className="text-xs uppercase tracking-[0.3em] font-semibold text-brand-olive/60 mb-4 block">
-                  Informasi Terkini
-                </span>
-                <h2 className="serif text-4xl md:text-5xl">Berita & Kegiatan Keluarga</h2>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-brand-olive/10 text-xs">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Akan Datang
-                </div>
-                <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-brand-olive/10 text-xs">
-                  <div className="w-2 h-2 rounded-full bg-brand-ink/20"></div> Sudah Lewat
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {news.length === 0 ? (
-                <div className="col-span-full py-20 text-center text-brand-ink/40 italic">
-                  Belum ada berita atau kegiatan yang diposting.
-                </div>
-              ) : (
-                news.map((item, idx) => (
-                  <motion.div
-                    key={item.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true }}
-                    transition={{ delay: idx * 0.1 }}
-                    className="bg-white p-8 rounded-[2rem] border border-brand-olive/10 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden flex flex-col"
-                  >
-                    {item.imageUrl && (
-                      <div className="absolute inset-0 opacity-0 group-hover:opacity-5 transition-opacity duration-700">
-                        <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                      </div>
-                    )}
-                    <div className={`absolute top-0 right-0 w-24 h-24 -mr-8 -mt-8 rounded-full opacity-10 transition-transform group-hover:scale-110 ${item.category === 'upcoming' ? 'bg-emerald-500' : 'bg-brand-ink'}`}></div>
-                    
-                    {item.imageUrl && (
-                      <div className="mb-6 h-48 -mx-8 -mt-8 overflow-hidden">
-                        <img 
-                          src={item.imageUrl} 
-                          alt={item.title} 
-                          className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
-                          referrerPolicy="no-referrer"
-                        />
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${item.category === 'upcoming' ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-cream text-brand-ink/60'}`}>
-                        {item.category === 'upcoming' ? 'Akan Datang' : 'Kegiatan Lalu'}
-                      </div>
-                      <div className="flex items-center text-[10px] text-brand-ink/40 font-medium">
-                        <Calendar size={12} className="mr-1" />
-                        {new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
-                      </div>
-                    </div>
-
-                    <h3 className="serif text-2xl mb-4 group-hover:text-brand-olive transition-colors leading-tight">
-                      {item.title}
-                    </h3>
-                    
-                    <p className="text-brand-ink/60 text-sm leading-relaxed mb-8 line-clamp-3">
-                      {item.content}
-                    </p>
-
-                    <div className="flex items-center justify-between pt-6 border-t border-brand-olive/5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full bg-brand-cream flex items-center justify-center text-brand-olive">
-                          <UserIcon size={14} />
-                        </div>
-                        <span className="text-[10px] font-semibold text-brand-ink/60 uppercase tracking-wider">{item.author}</span>
-                      </div>
-                      <Newspaper size={18} className="text-brand-olive/20 group-hover:text-brand-olive/40 transition-colors" />
-                    </div>
-                  </motion.div>
-                ))
-              )}
             </div>
           </div>
         </section>

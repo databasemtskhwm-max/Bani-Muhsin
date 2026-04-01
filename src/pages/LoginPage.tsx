@@ -71,7 +71,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       }
     } catch (err: any) {
       console.error(err);
-      if (isRegister) {
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Metode login Email/Password belum diaktifkan di Firebase Console. Silakan buka Firebase Console > Authentication > Sign-in method dan aktifkan "Email/Password".');
+      } else if (isRegister) {
         setError('Gagal mendaftar. Email mungkin sudah terdaftar atau kata sandi terlalu lemah.');
       } else {
         setError('Gagal masuk. Periksa kembali email dan kata sandi Anda.');
@@ -108,7 +110,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       }
     } catch (err: any) {
       console.error(err);
-      setError('Gagal masuk sebagai Admin. Pastikan kredensial benar.');
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Metode login Email/Password belum diaktifkan di Firebase Console. Silakan buka Firebase Console > Authentication > Sign-in method dan aktifkan "Email/Password".');
+      } else {
+        setError('Gagal masuk sebagai Admin. Pastikan kredensial benar.');
+      }
     } finally {
       setLoading(false);
     }
