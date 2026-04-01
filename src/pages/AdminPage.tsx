@@ -549,6 +549,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             onChange={(e) => updateMember(node.id, { spouse: e.target.value })}
             className="text-xs border-brand-olive/10 rounded-lg p-1 w-32"
           />
+          {node.spouse && (
+            <label className="flex items-center gap-1 text-[10px] text-brand-ink/60 cursor-pointer hover:text-brand-olive">
+              <input
+                type="checkbox"
+                checked={node.spouseIsDeceased || false}
+                onChange={(e) => updateMember(node.id, { spouseIsDeceased: e.target.checked })}
+                className="rounded text-brand-olive focus:ring-brand-olive w-3 h-3"
+              />
+              Pasangan Alm/ah
+            </label>
+          )}
           <label className="flex items-center gap-1 text-xs text-brand-ink/60 cursor-pointer hover:text-brand-olive">
             <input
               type="checkbox"

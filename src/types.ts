@@ -6,6 +6,7 @@ export interface FamilyMember {
   type: MemberType;
   children?: FamilyMember[];
   spouse?: string;
+  spouseIsDeceased?: boolean;
   isDeceased?: boolean;
   photoUrl?: string;
   birthDate?: string;

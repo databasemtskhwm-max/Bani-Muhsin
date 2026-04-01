@@ -4,7 +4,7 @@ import { FamilyTreeInteractive } from './components/FamilyTreeInteractive';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
-import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut } from 'lucide-react';
+import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X } from 'lucide-react';
 import { FamilyMember, NewsItem, GalleryItem, UserProfile } from './types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -63,7 +63,91 @@ export default function App() {
   const [isGallery, setIsGallery] = useState(window.location.pathname === '/gallery');
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const getStats = (node: FamilyMember | null) => {
+    if (!node) return { total: 0, gen2: 0, gen3: 0, gen4: 0, gen5: 0, deceased: 0 };
+    
+    let total = 0;
+    let gen2 = 0; // Anak
+    let gen3 = 0; // Cucu
+    let gen4 = 0; // Cicit
+    let gen5 = 0; // Buyut+
+    let deceased = 0;
+
+    const traverse = (n: FamilyMember, depth: number) => {
+      // Count the member
+      total++;
+      if (n.isDeceased) deceased++;
+      
+      // Count the spouse if exists
+      if (n.spouse && n.spouse.trim() !== '') {
+        total++;
+        if (n.spouseIsDeceased) deceased++;
+      }
+
+      if (depth === 2) gen2++;
+      else if (depth === 3) gen3++;
+      else if (depth === 4) gen4++;
+      else if (depth >= 5) gen5++;
+
+      if (n.children) {
+        n.children.forEach(child => traverse(child, depth + 1));
+      }
+    };
+
+    traverse(node, 0);
+    return { total, gen2, gen3, gen4, gen5, deceased };
+  };
+
+  const stats = getStats(familyData);
+  const [pdfStats, setPdfStats] = useState(stats);
+  const [pdfData, setPdfData] = useState<FamilyMember | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setSearchTerm(searchQuery);
+
+    // Find the member in the data
+    const findMember = (node: FamilyMember, term: string): FamilyMember | null => {
+      const lowerTerm = term.toLowerCase();
+      if (node.name.toLowerCase().includes(lowerTerm) || (node.spouse?.toLowerCase().includes(lowerTerm))) {
+        return node;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          const found = findMember(child, term);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
+    if (familyData) {
+      const found = findMember(familyData, searchQuery);
+      if (found) {
+        // Wait for potential expansion in FamilyTreeInteractive
+        setTimeout(() => {
+          const element = document.getElementById(`member-${found.id}`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Add a temporary highlight effect
+            element.classList.add('ring-offset-4', 'ring-brand-olive', 'ring-4');
+            setTimeout(() => {
+              element.classList.remove('ring-offset-4');
+            }, 3000);
+          }
+        }, 300);
+      } else {
+        alert(`Maaf, kata kunci "${searchQuery}" tidak ditemukan dalam silsilah keluarga.`);
+      }
+    }
+  };
 
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -178,38 +262,17 @@ export default function App() {
     }
   };
 
-  const getStats = (node: FamilyMember | null) => {
-    if (!node) return { total: 0, gen2: 0, gen3: 0, gen4: 0, gen5: 0, deceased: 0 };
-    
-    let total = 0;
-    let gen2 = 0; // Anak
-    let gen3 = 0; // Cucu
-    let gen4 = 0; // Cicit
-    let gen5 = 0; // Buyut+
-    let deceased = 0;
-
-    const traverse = (n: FamilyMember, depth: number) => {
-      total++;
-      if (n.isDeceased) deceased++;
-      if (depth === 2) gen2++;
-      else if (depth === 3) gen3++;
-      else if (depth === 4) gen4++;
-      else if (depth >= 5) gen5++;
-
-      if (n.children) {
-        n.children.forEach(child => traverse(child, depth + 1));
-      }
-    };
-
-    traverse(node, 0);
-    return { total, gen2, gen3, gen4, gen5, deceased };
-  };
-
-  const stats = getStats(familyData);
-
-  const downloadPDF = async () => {
+  const downloadPDF = async (filteredData?: FamilyMember) => {
     const element = document.getElementById('pdf-content');
     if (!element) return;
+
+    // Update PDF state
+    const dataToUse = filteredData || familyData;
+    setPdfData(dataToUse);
+    setPdfStats(getStats(dataToUse));
+
+    // Wait for state update and re-render
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     // Show the hidden content temporarily
     element.style.display = 'block';
@@ -647,6 +710,7 @@ export default function App() {
             <h2 className="serif text-5xl md:text-7xl mb-6 tracking-tight">Pohon Silsilah</h2>
             <div className="w-32 h-1 bg-brand-olive/20 mx-auto mb-8 rounded-full"></div>
             <p className="text-brand-ink/60 text-lg mb-4 font-light">Klik dan telusuri garis keturunan Bani Muhsin</p>
+            
             {lastUpdate && (
               <p className="text-[11px] uppercase tracking-[0.3em] text-brand-olive/60 font-bold mb-10">
                 Terakhir diperbarui: {new Date(lastUpdate).toLocaleString('id-ID', { 
@@ -660,16 +724,142 @@ export default function App() {
             )}
             
             <button 
-              onClick={downloadPDF}
+              onClick={() => setIsDownloadModalOpen(true)}
               className="inline-flex items-center gap-3 bg-white/60 backdrop-blur-md border border-brand-olive/20 text-brand-olive px-10 py-4 rounded-full text-sm font-bold hover:bg-brand-olive hover:text-white transition-all shadow-xl shadow-brand-olive/5 hover:shadow-2xl"
             >
               <Download size={18} /> Unduh Dokumen Silsilah (PDF)
             </button>
           </div>
           <div className="bg-white/30 backdrop-blur-md p-4 md:p-12 rounded-[3rem] border border-white/50 shadow-2xl">
-            <FamilyTreeInteractive data={familyData} />
+            <div className="max-w-md mx-auto mb-10 relative">
+              <form onSubmit={handleSearch} className="flex gap-2">
+                <div className="relative flex-grow">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-brand-olive/40">
+                    <Users size={18} />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Cari nama anggota keluarga..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white/50 backdrop-blur-md border border-brand-olive/20 rounded-full py-4 pl-12 pr-6 text-sm focus:outline-none focus:ring-2 focus:ring-brand-olive/30 transition-all shadow-lg"
+                  />
+                </div>
+                <button 
+                  type="submit"
+                  className="bg-brand-olive text-white px-6 py-4 rounded-full text-sm font-bold hover:shadow-lg transition-all"
+                >
+                  Cari
+                </button>
+              </form>
+            </div>
+            <FamilyTreeInteractive data={familyData} searchTerm={searchTerm} />
           </div>
         </section>
+
+        {/* Download Modal */}
+        <AnimatePresence>
+          {isDownloadModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-lg w-full relative border border-brand-olive/10 p-8 md:p-10"
+              >
+                <button 
+                  onClick={() => setIsDownloadModalOpen(false)}
+                  className="absolute top-6 right-6 p-2 rounded-full bg-brand-cream text-brand-ink/60 hover:text-brand-olive transition-colors"
+                >
+                  <X size={20} />
+                </button>
+
+                <h2 className="serif text-3xl mb-4">Unduh Silsilah</h2>
+                <p className="text-brand-ink/60 text-sm mb-8">Pilih cabang keluarga yang ingin Anda sertakan dalam dokumen PDF.</p>
+
+                <div className="space-y-4 max-h-[40vh] overflow-y-auto mb-8 pr-2 custom-scrollbar">
+                  <label className="flex items-center gap-4 p-4 rounded-2xl bg-brand-cream/50 border border-brand-olive/10 cursor-pointer hover:bg-brand-cream transition-colors">
+                    <input 
+                      type="checkbox" 
+                      checked={selectedBranches.length === (familyData?.children?.flatMap(w => w.children || [])?.length || 0)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          const allIds = familyData?.children?.flatMap(w => w.children || [])?.map(c => c.id) || [];
+                          setSelectedBranches(allIds);
+                        } else {
+                          setSelectedBranches([]);
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-brand-olive/20 text-brand-olive focus:ring-brand-olive"
+                    />
+                    <span className="font-bold text-brand-ink">Pilih Semua Keluarga</span>
+                  </label>
+
+                  <div className="grid grid-cols-1 gap-3">
+                    {familyData?.children?.map(wife => (
+                      <div key={wife.id} className="space-y-3">
+                        <div className="text-[10px] uppercase tracking-widest font-bold text-brand-olive/40 mt-4 px-2">Keluarga {wife.name}</div>
+                        {wife.children?.map(child => (
+                          <label key={child.id} className="flex items-center gap-4 p-4 rounded-2xl border border-brand-olive/5 hover:border-brand-olive/20 cursor-pointer transition-all">
+                            <input 
+                              type="checkbox" 
+                              checked={selectedBranches.includes(child.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedBranches([...selectedBranches, child.id]);
+                                } else {
+                                  setSelectedBranches(selectedBranches.filter(id => id !== child.id));
+                                }
+                              }}
+                              className="w-5 h-5 rounded border-brand-olive/20 text-brand-olive focus:ring-brand-olive"
+                            />
+                            <div className="flex flex-col">
+                              <span className="font-medium text-brand-ink">{child.name}</span>
+                              <span className="text-[10px] text-brand-ink/40 italic">Keturunan {child.name}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={() => {
+                      if (selectedBranches.length === 0) {
+                        alert('Silakan pilih minimal satu cabang keluarga.');
+                        return;
+                      }
+                      
+                      // Filter family data
+                      if (!familyData) return;
+                      const filtered: FamilyMember = {
+                        ...familyData,
+                        children: familyData.children?.map(wife => ({
+                          ...wife,
+                          children: wife.children?.filter(child => selectedBranches.includes(child.id))
+                        })).filter(wife => (wife.children?.length || 0) > 0)
+                      };
+                      
+                      downloadPDF(filtered);
+                      setIsDownloadModalOpen(false);
+                    }}
+                    className="flex-grow bg-brand-olive text-white py-4 rounded-full font-bold hover:shadow-xl transition-all flex items-center justify-center gap-2"
+                  >
+                    <Download size={18} /> Unduh Sekarang
+                  </button>
+                  <button
+                    onClick={() => setIsDownloadModalOpen(false)}
+                    className="px-8 py-4 rounded-full border border-brand-olive/10 text-brand-ink/60 hover:bg-brand-cream transition-all"
+                  >
+                    Batal
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
 
         {/* Hidden PDF Template */}
         <div id="pdf-content" style={{ display: 'none', width: '850px', padding: '60px', background: '#fdfcfb', color: '#1a1a1a', fontFamily: 'serif' }}>
@@ -684,12 +874,12 @@ export default function App() {
           {/* Stats Grid - Modern Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '10px', marginBottom: '50px' }}>
             {[
-              { label: 'Total', val: stats.total, color: '#3d4a3e' },
-              { label: 'Anak', val: stats.gen2, color: '#2563eb' },
-              { label: 'Cucu', val: stats.gen3, color: '#059669' },
-              { label: 'Cicit', val: stats.gen4, color: '#d97706' },
-              { label: 'Buyut+', val: stats.gen5, color: '#e11d48' },
-              { label: 'Alm/Almh', val: stats.deceased, color: '#6b705c' }
+              { label: 'Total', val: pdfStats.total, color: '#3d4a3e' },
+              { label: 'Anak', val: pdfStats.gen2, color: '#2563eb' },
+              { label: 'Cucu', val: pdfStats.gen3, color: '#059669' },
+              { label: 'Cicit', val: pdfStats.gen4, color: '#d97706' },
+              { label: 'Buyut+', val: pdfStats.gen5, color: '#e11d48' },
+              { label: 'Alm/Almh', val: pdfStats.deceased, color: '#6b705c' }
             ].map((s, i) => (
               <div key={i} style={{ background: 'white', padding: '15px 5px', borderRadius: '12px', boxShadow: '0 4px 12px rgba(0,0,0,0.03)', textAlign: 'center', border: '1px solid rgba(61,74,62,0.05)' }}>
                 <div style={{ fontSize: '20px', fontWeight: 'bold', color: s.color, marginBottom: '4px' }}>{s.val}</div>
@@ -739,13 +929,17 @@ export default function App() {
                       ) : (
                         <span style={{ fontSize: '8pt', color: '#059669', marginLeft: '6px', opacity: 0.4 }}>(Hidup)</span>
                       )}
-                      {node.spouse && <span style={{ fontSize: '10pt', opacity: 0.5, fontStyle: 'italic', marginLeft: '8px', fontWeight: 'normal' }}> (Pasangan: {node.spouse})</span>}
+                      {node.spouse && (
+                        <span style={{ fontSize: '10pt', opacity: 0.5, fontStyle: 'italic', marginLeft: '8px', fontWeight: 'normal' }}> 
+                          (Pasangan: {node.spouse} {node.spouseIsDeceased ? <span style={{ color: '#6b705c' }}>[Alm/Almh]</span> : <span style={{ color: '#059669' }}>[Hidup]</span>})
+                        </span>
+                      )}
                     </div>
                     {node.children && node.children.map(child => renderPdfNode(child, depth + 1))}
                   </div>
                 );
               };
-              return familyData ? renderPdfNode(familyData, 0) : null;
+              return pdfData ? renderPdfNode(pdfData, 0) : null;
             })()}
           </div>
 

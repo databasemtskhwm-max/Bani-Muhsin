@@ -13,12 +13,37 @@ interface NodeProps {
   member: FamilyMember;
   level: number;
   isLast?: boolean;
+  searchTerm?: string;
 }
 
-const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
+const Node: React.FC<NodeProps> = ({ member, level, isLast, searchTerm }) => {
+  // Check if this node or any of its descendants match the search term
+  const matchesSearch = (m: FamilyMember, term: string): boolean => {
+    if (!term) return false;
+    const lowerTerm = term.toLowerCase();
+    if (m.name.toLowerCase().includes(lowerTerm)) return true;
+    if (m.spouse && m.spouse.toLowerCase().includes(lowerTerm)) return true;
+    if (m.children) {
+      return m.children.some(child => matchesSearch(child, term));
+    }
+    return false;
+  };
+
+  const isMatch = searchTerm ? member.name.toLowerCase().includes(searchTerm.toLowerCase()) || (member.spouse?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false) : false;
+  const hasMatchingDescendant = searchTerm ? matchesSearch(member, searchTerm) : false;
+
   // Always expand the root and the wives by default to show the 10 children
-  const [isExpanded, setIsExpanded] = useState(level < 2);
+  // Also expand if there's a matching descendant
+  const [isExpanded, setIsExpanded] = useState(level < 2 || hasMatchingDescendant);
   const [showDetails, setShowDetails] = useState(false);
+
+  // Update expansion if search term changes and has matching descendant
+  React.useEffect(() => {
+    if (hasMatchingDescendant) {
+      setIsExpanded(true);
+    }
+  }, [hasMatchingDescendant]);
+
   const hasChildren = member.children && member.children.length > 0;
 
   const getTypeStyles = (type: string) => {
@@ -78,11 +103,13 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
       <div className="py-2">
         <div className="flex items-center gap-2">
           <button
+            id={`member-${member.id}`}
             onClick={() => setShowDetails(true)}
             className={cn(
               "flex items-center px-4 py-3 rounded-xl border transition-all duration-300 text-left min-w-[200px] group relative",
               getTypeStyles(member.type),
-              "cursor-pointer hover:shadow-lg active:scale-95"
+              "cursor-pointer hover:shadow-lg active:scale-95",
+              isMatch && "ring-4 ring-brand-olive ring-offset-2 scale-105 z-20 shadow-2xl"
             )}
           >
             {getIcon(member.type)}
@@ -96,7 +123,12 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
                 {member.isDeceased && <Flower2 size={12} className={cn(member.type === 'ancestor' ? "text-white/60" : "text-brand-olive/40")} />}
               </div>
               <div className="flex flex-col">
-                {member.spouse && <div className={cn("text-[10px] opacity-60 italic", member.type === 'ancestor' && "text-white/60")}>Pasangan: {member.spouse}</div>}
+                {member.spouse && (
+                  <div className={cn("text-[10px] opacity-60 italic flex items-center gap-1", member.type === 'ancestor' && "text-white/60")}>
+                    Pasangan: {member.spouse}
+                    {member.spouseIsDeceased && <Flower2 size={10} className="text-brand-olive/40" />}
+                  </div>
+                )}
                 {member.isDeceased ? (
                   <div className={cn("text-[9px] font-bold uppercase tracking-tighter", member.type === 'ancestor' ? "text-white/50" : "text-brand-olive/40")}>Almarhum/ah</div>
                 ) : (
@@ -233,7 +265,14 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
                       </div>
                       <div>
                         <p className="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Pasangan</p>
-                        <p className="text-sm font-medium">{member.spouse}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{member.spouse}</p>
+                          {member.spouseIsDeceased && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-[8px] font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1">
+                              <Flower2 size={8} /> Alm/ah
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -272,6 +311,7 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
                   member={child} 
                   level={level + 1} 
                   isLast={index === (member.children?.length || 0) - 1}
+                  searchTerm={searchTerm}
                 />
               ))}
             </div>
@@ -282,13 +322,13 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast }) => {
   );
 };
 
-export const FamilyTreeInteractive: React.FC<{ data: FamilyMember | null }> = ({ data }) => {
+export const FamilyTreeInteractive: React.FC<{ data: FamilyMember | null, searchTerm?: string }> = ({ data, searchTerm }) => {
   if (!data) return <div className="text-center p-10 opacity-50 italic">Memuat data silsilah...</div>;
 
   return (
     <div className="p-4 md:p-8 bg-white/30 rounded-3xl border border-brand-olive/5 shadow-inner overflow-x-auto">
       <div className="inline-block min-w-full">
-        <Node member={data} level={0} isLast={true} />
+        <Node member={data} level={0} isLast={true} searchTerm={searchTerm} />
       </div>
     </div>
   );
