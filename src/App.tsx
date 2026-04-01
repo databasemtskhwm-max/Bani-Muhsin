@@ -458,7 +458,7 @@ export default function App() {
         <section className="relative h-[600px] md:h-[700px] flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0 z-0">
             <img 
-              src="https://ais-pre-nvg6imdqiebeqyti2udo2g-482634215128.asia-southeast1.run.app/background.jpg" 
+              src="https://drive.google.com/uc?export=view&id=1qHSjo3QC70Y0qO0wXVunqFfafaQAfXTo" 
               alt="Family Background" 
               className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-1000"
               referrerPolicy="no-referrer"
