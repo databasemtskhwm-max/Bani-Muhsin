@@ -61,8 +61,10 @@ service cloud.firestore {
     }
 
     function isAdmin() {
-      return isAuthenticated() &&
-        (request.auth.token.email == "databasemtskhwm@gmail.com");
+      return isAuthenticated() && (
+        (request.auth.token.email == "databasemtskhwm@gmail.com" && request.auth.token.email_verified == true) ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
     }
 
     function isEditor() {
@@ -111,7 +113,7 @@ service cloud.firestore {
     function isValidNews(data) {
       return hasRequiredFields(data, ['id', 'title', 'content', 'date', 'category']) &&
              isValidString(data.title, 1, 200) &&
-             isValidString(data.content, 1, 10000) &&
+             isValidString(data.content, 0, 10000) &&
              isValidDateString(data.date) &&
              data.category in ['upcoming', 'past'] &&
              (!('imageUrl' in data) || isValidUrl(data.imageUrl));
@@ -134,7 +136,7 @@ service cloud.firestore {
 
     function isValidSettings(data) {
       return hasRequiredFields(data, ['history', 'lastUpdate', 'familyTree']) &&
-             isValidString(data.history, 1, 10000);
+             isValidString(data.history, 0, 10000);
     }
 
     // Rules
@@ -157,7 +159,7 @@ service cloud.firestore {
     match /settings/global {
       // Allow public read for the family tree so it's a real website
       allow read: if true;
-      allow write: if isEditor() && isValidSettings(request.resource.data);
+      allow write: if isAdmin() || (isEditor() && isValidSettings(request.resource.data));
     }
 
     match /news/{newsId} {
