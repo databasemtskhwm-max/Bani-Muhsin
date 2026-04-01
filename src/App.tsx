@@ -109,6 +109,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<FamilyMember[]>([]);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   const scrollToMember = (memberId: string) => {
     // Wait for potential expansion in FamilyTreeInteractive
@@ -283,9 +284,11 @@ export default function App() {
     const dataToUse = filteredData || familyData;
     setPdfData(dataToUse);
     setPdfStats(getStats(dataToUse));
+    setDownloadProgress(10);
 
     // Wait for state update and re-render
-    await new Promise(resolve => setTimeout(resolve, 100));
+    await new Promise(resolve => setTimeout(resolve, 500));
+    setDownloadProgress(20);
 
     // Show the hidden content temporarily
     element.style.display = 'block';
@@ -297,9 +300,11 @@ export default function App() {
         logging: false,
         backgroundColor: '#fdfcfb'
       });
+      setDownloadProgress(60);
       
       const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF('p', 'mm', 'a4');
+      setDownloadProgress(70);
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
@@ -315,6 +320,8 @@ export default function App() {
       let heightLeft = imgHeight;
       let currentPage = 1;
       let canvasOffset = 0;
+
+      const totalPagesEstimate = Math.ceil(imgHeight / (pdfHeight - bottomMargin));
 
       while (heightLeft > 0) {
         if (currentPage > 1) {
@@ -349,14 +356,20 @@ export default function App() {
         canvasOffset += currentEffectiveHeight;
         heightLeft -= currentEffectiveHeight;
         currentPage++;
+
+        // Update progress based on pages processed (from 70% to 95%)
+        const progress = 70 + Math.min(25, (currentPage / totalPagesEstimate) * 25);
+        setDownloadProgress(Math.round(progress));
       }
-      
+
+      setDownloadProgress(100);
       pdf.save(`Silsilah_Bani_Muhsin_${new Date().getTime()}.pdf`);
     } catch (err) {
       console.error("PDF Generation Error:", err);
       alert("Gagal mengunduh PDF.");
     } finally {
       element.style.display = 'none';
+      setTimeout(() => setDownloadProgress(null), 1000);
     }
   };
 
@@ -1019,6 +1032,41 @@ export default function App() {
                   >
                     Tutup
                   </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Download Progress Modal */}
+        <AnimatePresence>
+          {downloadProgress !== null && (
+            <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.9, y: 20 }}
+                className="bg-white rounded-[2.5rem] overflow-hidden shadow-2xl max-w-sm w-full relative border border-brand-olive/10 p-8 text-center"
+              >
+                <div className="w-16 h-16 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive mx-auto mb-6">
+                  <Download size={32} className="animate-bounce" />
+                </div>
+                
+                <h2 className="serif text-2xl mb-2">Menyiapkan Dokumen</h2>
+                <p className="text-brand-ink/60 text-sm mb-8">Mohon tunggu sebentar, kami sedang menyusun silsilah keluarga Anda...</p>
+                
+                <div className="relative h-2 w-full bg-brand-cream rounded-full overflow-hidden mb-4">
+                  <motion.div 
+                    className="absolute inset-y-0 left-0 bg-brand-olive"
+                    initial={{ width: 0 }}
+                    animate={{ width: `${downloadProgress}%` }}
+                    transition={{ duration: 0.3 }}
+                  />
+                </div>
+                
+                <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-brand-olive/60">
+                  <span>{downloadProgress}% Selesai</span>
+                  <span>{downloadProgress === 100 ? 'Siap!' : 'Memproses...'}</span>
                 </div>
               </motion.div>
             </div>
