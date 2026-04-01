@@ -504,7 +504,7 @@ export default function App() {
           <span className="serif text-2xl font-semibold tracking-tight">Bani Muhsin</span>
         </div>
         <div className="hidden md:flex gap-8 text-sm uppercase tracking-widest font-medium opacity-70 items-center">
-          <a href="#history" className="hover:opacity-100 transition-opacity">Sejarah</a>
+          <a href="#history" className="hover:opacity-100 transition-opacity">Tentang</a>
           <a href="#tree" className="hover:opacity-100 transition-opacity">Silsilah</a>
           <button onClick={() => navigateTo('/gallery')} className="hover:opacity-100 transition-opacity">Galeri</button>
           {user && userProfile && (userProfile.role === 'admin' || (userProfile.role === 'editor' && userProfile.status === 'approved')) ? (
@@ -591,7 +591,7 @@ export default function App() {
                   Lihat Silsilah Keluarga
                 </a>
                 <a href="#history" className="border border-white/20 text-white px-8 py-4 rounded-full text-sm font-medium hover:bg-white/5 transition-all">
-                  Baca Sejarah
+                  Tentang Kami
                 </a>
               </div>
             </motion.div>
@@ -1167,7 +1167,7 @@ export default function App() {
             <span className="text-xs uppercase tracking-[0.5em] font-bold text-white/50 mb-6 block">
               Kisah Kami
             </span>
-            <h2 className="serif text-5xl md:text-8xl mb-16 italic font-light">Asal Usul Bani Muhsin</h2>
+            <h2 className="serif text-5xl md:text-8xl mb-16 italic font-light">Tentang Bani Muhsin</h2>
             <div className="space-y-10 text-xl md:text-2xl text-white/90 leading-[1.8] font-light whitespace-pre-wrap">
               {historyText || "Memuat sejarah..."}
             </div>

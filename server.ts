@@ -74,11 +74,18 @@ const defaultData = {
   ]
 };
 
-const defaultHistory = `Bani Muhsin berawal dari sebuah desa kecil di pesisir, di mana kakek buyut kami, Muhsin, menanamkan nilai-nilai kejujuran dan kerja keras. Beliau dikenal sebagai sosok yang bijaksana dan dermawan, yang selalu mengutamakan pendidikan bagi anak-cucunya.
+const defaultHistory = `Bani Muhsin bukan sekadar nama yang tersusun dari garis keturunan, melainkan sebuah ikatan ruhani yang ditenun oleh waktu, doa, dan perjuangan. Ia adalah jejak cinta yang diwariskan dari generasi ke generasi, mengalir dalam darah, hidup dalam akhlak, dan tumbuh dalam kebersamaan.
 
-Seiring berjalannya waktu, keluarga ini berkembang dan menyebar. Namun, semangat kebersamaan yang diajarkan oleh beliau tetap hidup dalam setiap pertemuan keluarga besar kami.
+Di dalam Bani Muhsin, kita belajar bahwa keluarga bukan hanya tentang siapa yang dilahirkan dari siapa, tetapi tentang siapa yang tetap saling menjaga dalam suka maupun duka. Sebab sejatinya, nasab menyatukan kita dalam asal, namun silaturahmi menyatukan kita dalam tujuan.
 
-Aplikasi ini dibuat untuk memastikan bahwa generasi mendatang tidak akan pernah lupa dari mana mereka berasal, dan nilai-nilai apa yang harus mereka jaga.`;
+Bani Muhsin adalah rumah—tempat kembali ketika lelah, tempat berbagi ketika bahagia, dan tempat menguatkan ketika rapuh. Di dalamnya ada doa-doa orang tua yang tak pernah putus, ada nilai-nilai luhur yang tak lekang oleh zaman, dan ada harapan yang terus tumbuh dalam setiap generasi.
+
+Seperti akar yang menghunjam dalam tanah, Bani Muhsin berdiri kokoh karena persatuan. Dan seperti ranting yang menjulang ke langit, ia terus berkembang membawa cita-cita dan keberkahan.
+
+Maka menjaga Bani Muhsin bukan hanya tentang mengingat nama-nama leluhur, tetapi tentang merawat cinta, menghormati sejarah, dan meneruskan kebaikan.
+
+Karena pada akhirnya,
+Bani Muhsin adalah tentang kita—yang dipersatukan oleh takdir, dan dipertahankan oleh hati.`;
 
 // Load or initialize data
 let store = {
