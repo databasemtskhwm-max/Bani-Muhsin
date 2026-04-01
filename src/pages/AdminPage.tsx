@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -65,6 +65,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const [lastSaved, setLastSaved] = useState<string | null>(null);
   const [showAudit, setShowAudit] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
+  const [showDeletionRequests, setShowDeletionRequests] = useState(false);
 
   const editorName = userProfile?.role === 'admin' ? 'Admin' : (user.displayName || user.email || 'Editor');
 
@@ -327,20 +328,32 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const removeMember = (id: string) => {
     if (id === 'root') return;
     const newData = JSON.parse(JSON.stringify(data));
-    const findAndRemove = (node: FamilyMember) => {
+    const timestamp = new Date().toISOString();
+    
+    const findAndProcess = (node: FamilyMember) => {
       if (node.children) {
         const index = node.children.findIndex(c => c.id === id);
         if (index !== -1) {
-          node.children.splice(index, 1);
+          if (userProfile?.role === 'admin') {
+            // Admin can delete immediately
+            if (!window.confirm(`Hapus ${node.children[index].name} secara permanen?`)) return false;
+            node.children.splice(index, 1);
+          } else {
+            // Editor requests deletion
+            if (!window.confirm(`Ajukan penghapusan untuk ${node.children[index].name}?`)) return false;
+            node.children[index].pendingDeletion = true;
+            node.children[index].deletionRequestedBy = editorName;
+            node.children[index].deletionRequestedAt = timestamp;
+          }
           return true;
         }
         for (const child of node.children) {
-          if (findAndRemove(child)) return true;
+          if (findAndProcess(child)) return true;
         }
       }
       return false;
     };
-    findAndRemove(newData);
+    findAndProcess(newData);
     setData(newData);
   };
 
@@ -520,6 +533,70 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     );
   };
 
+  const approveDeletion = (id: string) => {
+    if (!window.confirm('Setujui penghapusan anggota ini secara permanen?')) return;
+    const newData = JSON.parse(JSON.stringify(data));
+    const findAndRemove = (node: FamilyMember) => {
+      if (node.children) {
+        const index = node.children.findIndex(c => c.id === id);
+        if (index !== -1) {
+          node.children.splice(index, 1);
+          return true;
+        }
+        for (const child of node.children) {
+          if (findAndRemove(child)) return true;
+        }
+      }
+      return false;
+    };
+    findAndRemove(newData);
+    setData(newData);
+    
+    const entry: AuditEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      userEmail: userProfile?.email || 'unknown',
+      action: 'APPROVE_DELETION',
+      details: `Menyetujui penghapusan anggota ID: ${id}`
+    };
+    setAuditLogs(prev => [entry, ...prev]);
+  };
+
+  const rejectDeletion = (id: string) => {
+    const newData = JSON.parse(JSON.stringify(data));
+    const findAndCancel = (node: FamilyMember) => {
+      if (node.id === id) {
+        delete node.pendingDeletion;
+        delete node.deletionRequestedBy;
+        delete node.deletionRequestedAt;
+        return true;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          if (findAndCancel(child)) return true;
+        }
+      }
+      return false;
+    };
+    findAndCancel(newData);
+    setData(newData);
+  };
+
+  const getDeletionRequests = (node: FamilyMember): FamilyMember[] => {
+    let requests: FamilyMember[] = [];
+    if (node.pendingDeletion) {
+      requests.push(node);
+    }
+    if (node.children) {
+      node.children.forEach(child => {
+        requests = [...requests, ...getDeletionRequests(child)];
+      });
+    }
+    return requests;
+  };
+
+  const deletionRequests = data ? getDeletionRequests(data) : [];
+
   const renderEditor = (node: FamilyMember, depth = 0) => {
     return (
       <div key={node.id} className="ml-6 border-l border-brand-olive/10 pl-4 my-4">
@@ -576,11 +653,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             <Heart size={18} />
           </button>
           {node.id !== 'root' && (
-            <button onClick={() => removeMember(node.id)} className="p-1 text-rose-600 hover:bg-rose-50 rounded" title="Hapus">
-              <Trash2 size={18} />
+            <button 
+              onClick={() => removeMember(node.id)} 
+              className={`p-1 rounded transition-all ${node.pendingDeletion ? 'text-amber-600 bg-amber-50' : 'text-rose-600 hover:bg-rose-50'}`}
+              title={node.pendingDeletion ? 'Menunggu Persetujuan Hapus' : 'Hapus'}
+            >
+              {node.pendingDeletion ? <AlertCircle size={18} /> : <Trash2 size={18} />}
             </button>
           )}
         </div>
+        {node.pendingDeletion && (
+          <div className="ml-8 mt-1 text-[10px] text-amber-600 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full w-fit">
+            <AlertCircle size={10} />
+            Menunggu persetujuan penghapusan oleh {node.deletionRequestedBy}
+          </div>
+        )}
         <div className="flex flex-wrap gap-2 mt-2 ml-8 pb-2 border-b border-brand-olive/5">
           <div className="flex items-center gap-2 flex-grow">
             {node.photoUrl && (
@@ -669,20 +756,40 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
               Migrasi ke Firebase
             </button>
             {userProfile?.role === 'admin' && (
-              <button
-                onClick={() => { setShowUsers(!showUsers); setShowAudit(false); }}
-                className={cn(
-                  "flex items-center border border-brand-olive/20 text-brand-olive px-4 py-2 rounded-full hover:bg-brand-olive/5 transition-all",
-                  showUsers && "bg-brand-olive text-white"
-                )}
-              >
-                <Shield size={18} className="mr-2" />
-                {showUsers ? 'Tutup Pengguna' : 'Manajemen Pengguna'}
-              </button>
+              <>
+                <button
+                  onClick={() => { setShowUsers(!showUsers); setShowAudit(false); setShowDeletionRequests(false); }}
+                  className={cn(
+                    "flex items-center border border-brand-olive/20 text-brand-olive px-4 py-2 rounded-full hover:bg-brand-olive/5 transition-all",
+                    showUsers && "bg-brand-olive text-white"
+                  )}
+                >
+                  <Shield size={18} className="mr-2" />
+                  {showUsers ? 'Tutup Pengguna' : 'Manajemen Pengguna'}
+                </button>
+                <button
+                  onClick={() => { setShowDeletionRequests(!showDeletionRequests); setShowUsers(false); setShowAudit(false); }}
+                  className={cn(
+                    "flex items-center border border-rose-200 text-rose-600 px-4 py-2 rounded-full hover:bg-rose-50 transition-all relative",
+                    showDeletionRequests && "bg-rose-600 text-white"
+                  )}
+                >
+                  <Trash2 size={18} className="mr-2" />
+                  {showDeletionRequests ? 'Tutup Persetujuan' : 'Persetujuan Hapus'}
+                  {deletionRequests.length > 0 && !showDeletionRequests && (
+                    <span className="absolute -top-1 -right-1 bg-white text-rose-600 text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full shadow-sm border border-rose-600">
+                      {deletionRequests.length}
+                    </span>
+                  )}
+                </button>
+              </>
             )}
             <button
-              onClick={() => { setShowAudit(!showAudit); setShowUsers(false); }}
-              className="flex items-center border border-brand-olive/20 text-brand-olive px-4 py-2 rounded-full hover:bg-brand-olive/5 transition-all"
+              onClick={() => { setShowAudit(!showAudit); setShowUsers(false); setShowDeletionRequests(false); }}
+              className={cn(
+                "flex items-center border border-brand-olive/20 text-brand-olive px-4 py-2 rounded-full hover:bg-brand-olive/5 transition-all",
+                showAudit && "bg-brand-olive text-white"
+              )}
             >
               <History size={18} className="mr-2" />
               {showAudit ? 'Tutup Log' : 'Riwayat Perubahan'}
@@ -762,6 +869,62 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           </motion.div>
         )}
 
+        {showDeletionRequests && (
+          <motion.div 
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="bg-white p-6 rounded-3xl border border-brand-olive/10 shadow-sm mb-8 overflow-hidden"
+          >
+            <h2 className="serif text-2xl mb-4">Persetujuan Penghapusan Anggota</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {deletionRequests.map((req) => (
+                <div key={req.id} className="p-4 rounded-2xl bg-brand-cream/50 border border-brand-olive/5">
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-white border border-brand-olive/10">
+                      {req.photoUrl ? (
+                        <img src={req.photoUrl} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-brand-olive/40">
+                          <User size={20} />
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{req.name}</p>
+                      <p className="text-[10px] opacity-50">ID: {req.id}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white/50 p-2 rounded-xl mb-4">
+                    <p className="text-[10px] text-brand-ink/60">
+                      Diminta oleh: <span className="font-semibold">{req.deletionRequestedBy}</span>
+                    </p>
+                    <p className="text-[10px] text-brand-ink/60">
+                      Waktu: {req.deletionRequestedAt ? new Date(req.deletionRequestedAt).toLocaleString('id-ID') : '-'}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button 
+                      onClick={() => rejectDeletion(req.id)}
+                      className="flex-grow py-2 bg-brand-cream text-brand-ink/60 rounded-xl text-xs font-semibold hover:bg-brand-olive/10 transition-all"
+                    >
+                      Tolak
+                    </button>
+                    <button 
+                      onClick={() => approveDeletion(req.id)}
+                      className="flex-grow py-2 bg-rose-600 text-white rounded-xl text-xs font-semibold hover:bg-rose-700 transition-all"
+                    >
+                      Setujui Hapus
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {deletionRequests.length === 0 && (
+                <p className="col-span-full text-center text-sm text-brand-olive/50 italic py-10">Tidak ada permintaan penghapusan tertunda.</p>
+              )}
+            </div>
+          </motion.div>
+        )}
+
         {showAudit && (
           <motion.div 
             initial={{ opacity: 0, height: 0 }}
@@ -807,103 +970,107 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
               {data && renderEditor(data)}
             </div>
 
-            <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
-              <h2 className="serif text-2xl mb-4">Edit Sejarah (Kisah Kami)</h2>
-              <textarea
-                value={history}
-                onChange={(e) => setHistory(e.target.value)}
-                className="w-full h-64 p-4 rounded-xl border border-brand-olive/10 focus:ring-brand-olive focus:border-brand-olive bg-white/80"
-                placeholder="Tuliskan sejarah keluarga di sini..."
-              />
-            </div>
+            {userProfile?.role === 'admin' && (
+              <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
+                <h2 className="serif text-2xl mb-4">Edit Sejarah (Kisah Kami)</h2>
+                <textarea
+                  value={history}
+                  onChange={(e) => setHistory(e.target.value)}
+                  className="w-full h-64 p-4 rounded-xl border border-brand-olive/10 focus:ring-brand-olive focus:border-brand-olive bg-white/80"
+                  placeholder="Tuliskan sejarah keluarga di sini..."
+                />
+              </div>
+            )}
           </div>
 
           <div className="space-y-8">
-            <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="serif text-2xl">Galeri Keluarga</h2>
-                <button 
-                  onClick={addGalleryItem}
-                  className="p-2 bg-brand-olive text-white rounded-full hover:shadow-md transition-all"
-                >
-                  <Plus size={20} />
-                </button>
-              </div>
-              
-              <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
-                {gallery.length === 0 ? (
-                  <p className="text-sm text-brand-ink/40 italic text-center py-8">Belum ada foto galeri.</p>
-                ) : (
-                  gallery.map((item) => (
-                    <div key={item.id} className="bg-white p-4 rounded-2xl border border-brand-olive/5 shadow-sm space-y-3">
-                      <select
-                        value={item.headOfFamilyId}
-                        onChange={(e) => {
-                          const member = allMembers.find(m => m.id === e.target.value);
-                          updateGalleryItem(item.id, { 
-                            headOfFamilyId: e.target.value,
-                            headOfFamilyName: member ? member.name : ''
-                          });
-                        }}
-                        className="w-full text-xs bg-brand-cream border-none rounded-lg px-2 py-1 focus:ring-0"
-                      >
-                        <option value="">Pilih Kepala Keluarga</option>
-                        {allMembers.map(m => (
-                          <option key={m.id} value={m.id}>{m.name}</option>
-                        ))}
-                      </select>
-                      <input
-                        type="text"
-                        value={item.caption}
-                        onChange={(e) => updateGalleryItem(item.id, { caption: e.target.value })}
-                        className="w-full font-bold text-sm border-none p-0 focus:ring-0"
-                        placeholder="Keterangan Foto"
-                      />
-                      <div className="flex gap-2">
-                        <div className="flex items-center text-[10px] text-brand-ink/40 bg-brand-cream px-2 py-1 rounded-lg">
-                          <Calendar size={10} className="mr-1" />
-                          <input
-                            type="date"
-                            value={item.date}
-                            onChange={(e) => updateGalleryItem(item.id, { date: e.target.value })}
-                            className="bg-transparent border-none p-0 focus:ring-0 text-[10px]"
-                          />
+            {userProfile?.role === 'admin' && (
+              <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="serif text-2xl">Galeri Keluarga</h2>
+                  <button 
+                    onClick={addGalleryItem}
+                    className="p-2 bg-brand-olive text-white rounded-full hover:shadow-md transition-all"
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+                
+                <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
+                  {gallery.length === 0 ? (
+                    <p className="text-sm text-brand-ink/40 italic text-center py-8">Belum ada foto galeri.</p>
+                  ) : (
+                    gallery.map((item) => (
+                      <div key={item.id} className="bg-white p-4 rounded-2xl border border-brand-olive/5 shadow-sm space-y-3">
+                        <select
+                          value={item.headOfFamilyId}
+                          onChange={(e) => {
+                            const member = allMembers.find(m => m.id === e.target.value);
+                            updateGalleryItem(item.id, { 
+                              headOfFamilyId: e.target.value,
+                              headOfFamilyName: member ? member.name : ''
+                            });
+                          }}
+                          className="w-full text-xs bg-brand-cream border-none rounded-lg px-2 py-1 focus:ring-0"
+                        >
+                          <option value="">Pilih Kepala Keluarga</option>
+                          {allMembers.map(m => (
+                            <option key={m.id} value={m.id}>{m.name}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={item.caption}
+                          onChange={(e) => updateGalleryItem(item.id, { caption: e.target.value })}
+                          className="w-full font-bold text-sm border-none p-0 focus:ring-0"
+                          placeholder="Keterangan Foto"
+                        />
+                        <div className="flex gap-2">
+                          <div className="flex items-center text-[10px] text-brand-ink/40 bg-brand-cream px-2 py-1 rounded-lg">
+                            <Calendar size={10} className="mr-1" />
+                            <input
+                              type="date"
+                              value={item.date}
+                              onChange={(e) => updateGalleryItem(item.id, { date: e.target.value })}
+                              className="bg-transparent border-none p-0 focus:ring-0 text-[10px]"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <FileUploadButton onUpload={(url) => updateGalleryItem(item.id, { imageUrl: url })} />
+                          {item.imageUrl && (
+                            <div className="relative h-48 rounded-xl overflow-hidden border border-brand-olive/10">
+                              <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
+                              <button 
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  updateGalleryItem(item.id, { imageUrl: '' });
+                                }}
+                                className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors shadow-lg z-10"
+                                title="Hapus Foto"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t border-brand-olive/5">
+                          <span className="text-[10px] text-brand-ink/40 flex items-center">
+                            <UserIcon size={10} className="mr-1" /> {item.uploadedBy}
+                          </span>
+                          <button 
+                            onClick={() => removeGalleryItem(item.id)}
+                            className="text-rose-500 hover:text-rose-700 transition-colors"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </div>
                       </div>
-                      <div className="space-y-2">
-                        <FileUploadButton onUpload={(url) => updateGalleryItem(item.id, { imageUrl: url })} />
-                        {item.imageUrl && (
-                          <div className="relative h-48 rounded-xl overflow-hidden border border-brand-olive/10">
-                            <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                            <button 
-                              onClick={(e) => {
-                                e.preventDefault();
-                                updateGalleryItem(item.id, { imageUrl: '' });
-                              }}
-                              className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors shadow-lg z-10"
-                              title="Hapus Foto"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-center pt-2 border-t border-brand-olive/5">
-                        <span className="text-[10px] text-brand-ink/40 flex items-center">
-                          <UserIcon size={10} className="mr-1" /> {item.uploadedBy}
-                        </span>
-                        <button 
-                          onClick={() => removeGalleryItem(item.id)}
-                          className="text-rose-500 hover:text-rose-700 transition-colors"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

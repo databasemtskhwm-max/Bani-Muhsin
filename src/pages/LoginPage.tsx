@@ -43,13 +43,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
     }
     setError('');
     setLoading(true);
-    const effectiveEmail = email.toLowerCase() === 'admin' ? 'admin@keluarga.com' : email;
-    const effectivePassword = email.toLowerCase() === 'admin' ? 'admin2026' : password;
+    const effectiveEmail = email.toLowerCase() === 'admin' ? 'admin@keluarga.com' : (email.includes('@') ? email : `${email.toLowerCase()}@keluarga.com`);
+    const effectivePassword = password;
 
     try {
       if (isRegister) {
         const result = await registerWithEmail(effectiveEmail, effectivePassword);
-        await updateProfile(result.user, { displayName });
+        await updateProfile(result.user, { displayName: displayName || email });
         onLogin(result.user);
       } else {
         try {
@@ -57,10 +57,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
           onLogin(result.user);
         } catch (loginErr: any) {
           // Special case for the requested admin account: auto-register if not found
-          const isAdminAccount = (effectiveEmail === 'databasemtskhwm@gmail.com' && effectivePassword === 'admin2026') || 
-                               (effectiveEmail === 'admin@keluarga.com' && effectivePassword === 'admin2026');
+          const isAdminAccount = (email.toLowerCase() === 'admin' && password === 'admin2026');
           
-          if (loginErr.code === 'auth/user-not-found' && isAdminAccount) {
+          if ((loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') && isAdminAccount) {
             const result = await registerWithEmail(effectiveEmail, effectivePassword);
             await updateProfile(result.user, { displayName: 'Admin Utama' });
             onLogin(result.user);
@@ -77,43 +76,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
         setError('Gagal mendaftar. Email mungkin sudah terdaftar atau kata sandi terlalu lemah.');
       } else {
         setError('Gagal masuk. Periksa kembali email dan kata sandi Anda.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickAdminLogin = async () => {
-    setEmail('admin');
-    setPassword('admin2026');
-    setError('');
-    setLoading(true);
-    try {
-      const effectiveEmail = 'admin@keluarga.com';
-      const effectivePassword = 'admin2026';
-      try {
-        const result = await loginWithEmail(effectiveEmail, effectivePassword);
-        onLogin(result.user);
-      } catch (loginErr: any) {
-        // Auto-register if not found
-        if (loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') {
-          try {
-            const result = await registerWithEmail(effectiveEmail, effectivePassword);
-            await updateProfile(result.user, { displayName: 'Admin Utama' });
-            onLogin(result.user);
-          } catch (regErr) {
-            throw loginErr;
-          }
-        } else {
-          throw loginErr;
-        }
-      }
-    } catch (err: any) {
-      console.error(err);
-      if (err.code === 'auth/operation-not-allowed') {
-        setError('Metode login Email/Password belum diaktifkan di Firebase Console. Silakan buka Firebase Console > Authentication > Sign-in method dan aktifkan "Email/Password".');
-      } else {
-        setError('Gagal masuk sebagai Admin. Pastikan kredensial benar.');
       }
     } finally {
       setLoading(false);
@@ -202,16 +164,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
             >
               {loading ? 'Memproses...' : isRegister ? 'Daftar Sekarang' : 'Masuk'}
             </button>
-            {!isRegister && (
-              <button
-                type="button"
-                onClick={handleQuickAdminLogin}
-                disabled={loading}
-                className="w-full bg-brand-ink text-white py-3 rounded-xl font-semibold hover:shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                <LogIn size={18} /> Masuk sebagai Admin Utama
-              </button>
-            )}
           </div>
         </form>
 

@@ -17,6 +17,9 @@ export interface FamilyMember {
   createdAt?: string;
   updatedBy?: string;
   updatedAt?: string;
+  pendingDeletion?: boolean;
+  deletionRequestedBy?: string;
+  deletionRequestedAt?: string;
 }
 
 export interface NewsItem {
