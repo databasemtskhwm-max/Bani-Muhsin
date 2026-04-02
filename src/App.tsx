@@ -573,7 +573,7 @@ export default function App() {
               transition={{ duration: 0.8 }}
             >
               <div className="inline-block px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white text-xs font-bold uppercase tracking-widest mb-6 shadow-xl">
-                Keluarga Besar Bani KH. Wahab Muhsin
+                Keluarga Besar Bani KH. Zaenal Muhsin
               </div>
               <h1 className="serif text-5xl md:text-8xl text-white font-bold leading-tight mb-8 drop-shadow-2xl">
                 Menjaga Silaturahmi, <br/>
@@ -583,7 +583,7 @@ export default function App() {
               <div className="inline-block bg-white/10 backdrop-blur-lg border border-white/20 rounded-3xl px-8 py-4 max-w-2xl mx-auto mb-12 shadow-2xl relative overflow-hidden group">
                 <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-50"></div>
                 <p className="relative z-10 text-white text-lg md:text-xl leading-relaxed font-light drop-shadow-sm">
-                  Platform digital untuk mempererat tali persaudaraan dan melestarikan sejarah keluarga besar Bani KH. Wahab Muhsin.
+                  Platform digital untuk mempererat tali persaudaraan dan melestarikan sejarah keluarga besar Bani KH. Zaenal Muhsin.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
