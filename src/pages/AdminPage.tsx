@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -66,6 +66,19 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const [showAudit, setShowAudit] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showDeletionRequests, setShowDeletionRequests] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  useEffect(() => {
+    if (searchQuery) {
+      const timer = setTimeout(() => {
+        const firstMatch = document.querySelector('.search-match');
+        if (firstMatch) {
+          firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [searchQuery]);
 
   const editorName = userProfile?.role === 'admin' ? 'Admin' : (user.displayName || user.email || 'Editor');
 
@@ -395,8 +408,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     }
   };
 
-  const getAllMembers = (node: FamilyMember): { id: string, name: string }[] => {
-    let members = [{ id: node.id, name: node.name }];
+  const getAllMembers = (node: FamilyMember): FamilyMember[] => {
+    let members = [node];
     if (node.children) {
       node.children.forEach(child => {
         members = [...members, ...getAllMembers(child)];
@@ -598,9 +611,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const deletionRequests = data ? getDeletionRequests(data) : [];
 
   const renderEditor = (node: FamilyMember, depth = 0) => {
+    const isMatch = searchQuery && (
+      node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (node.spouse && node.spouse.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (node.address && node.address.toLowerCase().includes(searchQuery.toLowerCase()))
+    );
+
     return (
-      <div key={node.id} className="ml-6 border-l border-brand-olive/10 pl-4 my-4">
-        <div className="flex flex-wrap items-center gap-2 bg-white p-3 rounded-xl shadow-sm border border-brand-olive/5">
+      <div key={node.id} className={cn(
+        "ml-6 border-l border-brand-olive/10 pl-4 my-4 transition-all duration-300",
+        isMatch && "bg-brand-olive/5 border-l-2 border-brand-olive rounded-r-2xl search-match"
+      )}>
+        <div className={cn(
+          "flex flex-wrap items-center gap-2 bg-white p-3 rounded-xl shadow-sm border border-brand-olive/5 transition-all",
+          isMatch && "ring-2 ring-brand-olive/30 border-brand-olive shadow-md"
+        )}>
           <input
             type="text"
             value={node.name}
@@ -966,8 +991,43 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             </div>
 
             <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm overflow-x-auto">
-              <h2 className="serif text-2xl mb-4">Edit Silsilah</h2>
-              {data && renderEditor(data)}
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <div className="flex flex-col">
+                  <h2 className="serif text-2xl">Edit Silsilah</h2>
+                  {searchQuery && (
+                    <span className="text-[10px] text-brand-olive font-medium">
+                      Ditemukan {allMembers.filter(m => 
+                        m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                        (m.spouse && m.spouse.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                        (m.address && m.address.toLowerCase().includes(searchQuery.toLowerCase()))
+                      ).length} anggota
+                    </span>
+                  )}
+                </div>
+                <div className="relative max-w-sm w-full">
+                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-brand-olive/40">
+                    <Search size={16} />
+                  </div>
+                  <input 
+                    type="text" 
+                    placeholder="Cari anggota keluarga..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white border border-brand-olive/10 rounded-full py-2 pl-10 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-brand-olive/30 transition-all shadow-sm"
+                  />
+                  {searchQuery && (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-4 flex items-center text-brand-olive/40 hover:text-rose-500 transition-colors"
+                    >
+                      <XIcon size={14} />
+                    </button>
+                  )}
+                </div>
+              </div>
+              <div className="max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
+                {data && renderEditor(data)}
+              </div>
             </div>
 
             {userProfile?.role === 'admin' && (
