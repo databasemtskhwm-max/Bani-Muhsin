@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
 import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -57,6 +57,19 @@ interface AdminPageProps {
 export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogout }) => {
   const [data, setData] = useState<FamilyMember | null>(null);
   const [history, setHistory] = useState<string>('');
+
+  const getAllMembers = (node: FamilyMember): FamilyMember[] => {
+    let members = [node];
+    if (node.children) {
+      node.children.forEach(child => {
+        members = [...members, ...getAllMembers(child)];
+      });
+    }
+    return members;
+  };
+
+  const allMembers = data ? getAllMembers(data) : [];
+
   const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -67,6 +80,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const [showUsers, setShowUsers] = useState(false);
   const [showDeletionRequests, setShowDeletionRequests] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
+  const filteredSuggestions = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 2) return [];
+    return allMembers.filter(m => 
+      m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      (m.spouse && m.spouse.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (m.address && m.address.toLowerCase().includes(searchQuery.toLowerCase()))
+    ).slice(0, 8); // Limit to 8 suggestions
+  }, [searchQuery, allMembers]);
 
   useEffect(() => {
     if (searchQuery) {
@@ -79,6 +103,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       return () => clearTimeout(timer);
     }
   }, [searchQuery]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const editorName = userProfile?.role === 'admin' ? 'Admin' : (user.displayName || user.email || 'Editor');
 
@@ -407,18 +441,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       alert('Gagal menghapus foto dari database.');
     }
   };
-
-  const getAllMembers = (node: FamilyMember): FamilyMember[] => {
-    let members = [node];
-    if (node.children) {
-      node.children.forEach(child => {
-        members = [...members, ...getAllMembers(child)];
-      });
-    }
-    return members;
-  };
-
-  const allMembers = data ? getAllMembers(data) : [];
 
   const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
     if (!storage) {
@@ -1004,7 +1026,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                     </span>
                   )}
                 </div>
-                <div className="relative max-w-sm w-full">
+                <div className="relative max-w-sm w-full" ref={searchRef}>
                   <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-brand-olive/40">
                     <Search size={16} />
                   </div>
@@ -1012,17 +1034,55 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                     type="text" 
                     placeholder="Cari anggota keluarga..." 
                     value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    onFocus={() => setShowSuggestions(true)}
                     className="w-full bg-white border border-brand-olive/10 rounded-full py-2 pl-10 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-brand-olive/30 transition-all shadow-sm"
                   />
                   {searchQuery && (
                     <button 
-                      onClick={() => setSearchQuery('')}
+                      onClick={() => {
+                        setSearchQuery('');
+                        setShowSuggestions(false);
+                      }}
                       className="absolute inset-y-0 right-4 flex items-center text-brand-olive/40 hover:text-rose-500 transition-colors"
                     >
                       <XIcon size={14} />
                     </button>
                   )}
+
+                  {/* Search Suggestions Dropdown */}
+                  <AnimatePresence>
+                    {showSuggestions && filteredSuggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-xl border border-brand-olive/10 z-50 overflow-hidden"
+                      >
+                        <div className="max-h-60 overflow-y-auto custom-scrollbar">
+                          {filteredSuggestions.map((member) => (
+                            <button
+                              key={member.id}
+                              onClick={() => {
+                                setSearchQuery(member.name);
+                                setShowSuggestions(false);
+                              }}
+                              className="w-full flex flex-col items-start px-4 py-3 hover:bg-brand-cream/50 transition-colors border-b border-brand-olive/5 last:border-0 text-left"
+                            >
+                              <span className="text-xs font-bold text-brand-ink">{member.name}</span>
+                              <span className="text-[10px] text-brand-ink/40">
+                                {member.spouse && `Pasangan: ${member.spouse}`}
+                                {member.address && ` • ${member.address}`}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
               </div>
               <div className="max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
