@@ -92,17 +92,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     ).slice(0, 8); // Limit to 8 suggestions
   }, [searchQuery, allMembers]);
 
-  useEffect(() => {
-    if (searchQuery) {
-      const timer = setTimeout(() => {
-        const firstMatch = document.querySelector('.search-match');
-        if (firstMatch) {
-          firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [searchQuery]);
+  const handleSearch = () => {
+    if (!searchQuery) return;
+    setShowSuggestions(false);
+    // Wait for the DOM to update highlights
+    setTimeout(() => {
+      const firstMatch = document.querySelector('.search-match');
+      if (firstMatch) {
+        firstMatch.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -1027,9 +1027,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                   )}
                 </div>
                 <div className="relative max-w-sm w-full" ref={searchRef}>
-                  <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-brand-olive/40">
+                  <button 
+                    onClick={handleSearch}
+                    className="absolute inset-y-0 left-4 flex items-center text-brand-olive/40 hover:text-brand-olive transition-colors z-10"
+                  >
                     <Search size={16} />
-                  </div>
+                  </button>
                   <input 
                     type="text" 
                     placeholder="Cari anggota keluarga..." 
@@ -1037,6 +1040,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                     onChange={(e) => {
                       setSearchQuery(e.target.value);
                       setShowSuggestions(true);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
                     }}
                     onFocus={() => setShowSuggestions(true)}
                     className="w-full bg-white border border-brand-olive/10 rounded-full py-2 pl-10 pr-10 text-xs focus:outline-none focus:ring-2 focus:ring-brand-olive/30 transition-all shadow-sm"
@@ -1069,6 +1077,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                               onClick={() => {
                                 setSearchQuery(member.name);
                                 setShowSuggestions(false);
+                                // Trigger search after state update
+                                setTimeout(handleSearch, 0);
                               }}
                               className="w-full flex flex-col items-start px-4 py-3 hover:bg-brand-cream/50 transition-colors border-b border-brand-olive/5 last:border-0 text-left"
                             >
