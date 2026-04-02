@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search, GripVertical } from 'lucide-react';
+import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
 import { User as FirebaseUser } from 'firebase/auth';
 import { cn } from '../lib/utils';
@@ -304,6 +304,24 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           updatedBy: editorName,
           updatedAt: timestamp
         });
+        return true;
+      }
+      if (node.children) {
+        for (const child of node.children) {
+          if (findAndUpdate(child)) return true;
+        }
+      }
+      return false;
+    };
+    findAndUpdate(newData);
+    setData(newData);
+  };
+
+  const reorderChildren = (parentId: string, newChildren: FamilyMember[]) => {
+    const newData = JSON.parse(JSON.stringify(data));
+    const findAndUpdate = (node: FamilyMember) => {
+      if (node.id === parentId) {
+        node.children = newChildren;
         return true;
       }
       if (node.children) {
@@ -648,6 +666,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           "flex flex-wrap items-center gap-2 bg-white p-3 rounded-xl shadow-sm border border-brand-olive/5 transition-all",
           isMatch && "ring-2 ring-brand-olive/30 border-brand-olive shadow-md"
         )}>
+          <div className="cursor-grab active:cursor-grabbing text-brand-olive/20 hover:text-brand-olive transition-colors p-1" title="Geser untuk urutkan">
+            <GripVertical size={16} />
+          </div>
           <input
             type="text"
             value={node.name}
@@ -765,7 +786,20 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             className="text-[10px] border-brand-olive/10 rounded-lg p-1 flex-grow"
           />
         </div>
-        {node.children && node.children.map(child => renderEditor(child, depth + 1))}
+        {node.children && (
+          <Reorder.Group 
+            axis="y" 
+            values={node.children} 
+            onReorder={(newChildren) => reorderChildren(node.id, newChildren)}
+            className="space-y-0"
+          >
+            {node.children.map(child => (
+              <Reorder.Item key={child.id} value={child}>
+                {renderEditor(child, depth + 1)}
+              </Reorder.Item>
+            ))}
+          </Reorder.Group>
+        )}
       </div>
     );
   };
