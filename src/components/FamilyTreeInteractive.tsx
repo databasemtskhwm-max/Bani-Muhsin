@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronDown, ChevronRight, User, Heart, Flower2, X, Calendar, MapPin, Info } from 'lucide-react';
+import { ChevronDown, ChevronRight, User, Heart, Flower2, X, Calendar, MapPin, Info, Users } from 'lucide-react';
 import { FamilyMember } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -14,9 +14,10 @@ interface NodeProps {
   level: number;
   isLast?: boolean;
   searchTerm?: string;
+  onShowFocusView?: (member: FamilyMember) => void;
 }
 
-const Node: React.FC<NodeProps> = ({ member, level, isLast, searchTerm }) => {
+const Node: React.FC<NodeProps & { onShowFocusView?: (member: FamilyMember) => void }> = ({ member, level, isLast, searchTerm, onShowFocusView }) => {
   // Check if this node or any of its descendants match the search term
   const matchesSearch = (m: FamilyMember, term: string): boolean => {
     if (!term) return false;
@@ -277,6 +278,22 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast, searchTerm }) => {
                     </div>
                   )}
 
+                  {hasChildren && onShowFocusView && (
+                    <div className="pt-4">
+                      <button
+                        onClick={() => {
+                          setShowDetails(false);
+                          onShowFocusView(member);
+                        }}
+                        className="w-full py-4 rounded-2xl bg-brand-olive text-white font-bold hover:shadow-xl transition-all flex items-center justify-center gap-2 group"
+                      >
+                        <Users size={18} className="group-hover:scale-110 transition-transform" />
+                        Lihat Keturunan (Horizontal)
+                        <ChevronRight size={18} className="group-hover:translate-x-1 transition-transform" />
+                      </button>
+                    </div>
+                  )}
+
                   {(member.updatedBy || member.createdBy) && (
                     <div className="pt-4 border-t border-brand-olive/5">
                       <p className="text-[9px] text-brand-ink/40 italic">
@@ -312,6 +329,7 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast, searchTerm }) => {
                   level={level + 1} 
                   isLast={index === (member.children?.length || 0) - 1}
                   searchTerm={searchTerm}
+                  onShowFocusView={onShowFocusView}
                 />
               ))}
             </div>
@@ -322,13 +340,13 @@ const Node: React.FC<NodeProps> = ({ member, level, isLast, searchTerm }) => {
   );
 };
 
-export const FamilyTreeInteractive: React.FC<{ data: FamilyMember | null, searchTerm?: string }> = ({ data, searchTerm }) => {
+export const FamilyTreeInteractive: React.FC<{ data: FamilyMember | null, searchTerm?: string, onShowFocusView?: (member: FamilyMember) => void }> = ({ data, searchTerm, onShowFocusView }) => {
   if (!data) return <div className="text-center p-10 opacity-50 italic">Memuat data silsilah...</div>;
 
   return (
     <div className="p-4 md:p-8 bg-white/30 rounded-3xl border border-brand-olive/5 shadow-inner overflow-x-auto">
       <div className="inline-block min-w-full">
-        <Node member={data} level={0} isLast={true} searchTerm={searchTerm} />
+        <Node member={data} level={0} isLast={true} searchTerm={searchTerm} onShowFocusView={onShowFocusView} />
       </div>
     </div>
   );

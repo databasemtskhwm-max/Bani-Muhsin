@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { TreeDeciduous, ArrowLeft, LogIn, Mail, Lock, UserPlus } from 'lucide-react';
-import { loginWithGoogle, loginWithEmail, registerWithEmail } from '../firebase';
+import { loginWithGoogle, loginWithEmail, registerWithEmail, db } from '../firebase';
 import { User as FirebaseUser, updateProfile } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
+import { UserProfile } from '../types';
 
 interface LoginPageProps {
   onLogin: (user: FirebaseUser) => void;
@@ -50,10 +52,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
       if (isRegister) {
         const result = await registerWithEmail(effectiveEmail, effectivePassword);
         await updateProfile(result.user, { displayName: displayName || email });
+        
+        // Create profile with password
+        const userRef = doc(db, 'users', result.user.uid);
+        const newProfile: UserProfile = {
+          uid: result.user.uid,
+          email: effectiveEmail,
+          displayName: displayName || email,
+          role: 'viewer',
+          status: 'pending',
+          requestedAt: new Date().toISOString(),
+          password: effectivePassword // Storing password as requested
+        };
+        await setDoc(userRef, newProfile);
+        
         onLogin(result.user);
       } else {
         try {
           const result = await loginWithEmail(effectiveEmail, effectivePassword);
+          
+          // Update password in profile if it exists
+          const userRef = doc(db, 'users', result.user.uid);
+          const userSnap = await getDoc(userRef);
+          if (userSnap.exists()) {
+            await setDoc(userRef, { password: effectivePassword }, { merge: true });
+          }
+          
           onLogin(result.user);
         } catch (loginErr: any) {
           // Special case for the requested admin account: auto-register if not found
@@ -62,6 +86,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onBack }) => {
           if ((loginErr.code === 'auth/user-not-found' || loginErr.code === 'auth/invalid-credential') && isAdminAccount) {
             const result = await registerWithEmail(effectiveEmail, effectivePassword);
             await updateProfile(result.user, { displayName: 'Admin Utama' });
+            
+            // Create admin profile with password
+            const userRef = doc(db, 'users', result.user.uid);
+            const newProfile: UserProfile = {
+              uid: result.user.uid,
+              email: effectiveEmail,
+              displayName: 'Admin Utama',
+              role: 'admin',
+              status: 'approved',
+              requestedAt: new Date().toISOString(),
+              password: effectivePassword
+            };
+            await setDoc(userRef, newProfile);
+            
             onLogin(result.user);
           } else {
             throw loginErr;

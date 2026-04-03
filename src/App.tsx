@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { FamilyTreeInteractive } from './components/FamilyTreeInteractive';
+import { FamilyTreeHorizontalView } from './components/FamilyTreeHorizontalView';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
@@ -112,6 +113,7 @@ export default function App() {
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [focusedMember, setFocusedMember] = useState<FamilyMember | null>(null);
 
   const scrollToMember = (memberId: string) => {
     // Wait for potential expansion in FamilyTreeInteractive
@@ -971,7 +973,11 @@ export default function App() {
                 </button>
               </form>
             </div>
-            <FamilyTreeInteractive data={familyData} searchTerm={searchTerm} />
+            <FamilyTreeInteractive 
+              data={familyData} 
+              searchTerm={searchTerm} 
+              onShowFocusView={setFocusedMember}
+            />
           </div>
         </section>
 
@@ -1408,6 +1414,16 @@ export default function App() {
           </div>
         </section>
       </main>
+      
+      {/* Horizontal Focus View */}
+      <AnimatePresence>
+        {focusedMember && (
+          <FamilyTreeHorizontalView 
+            rootMember={focusedMember} 
+            onClose={() => setFocusedMember(null)} 
+          />
+        )}
+      </AnimatePresence>
 
       {/* Footer */}
       <footer className="p-12 border-t border-brand-olive/10 text-center">

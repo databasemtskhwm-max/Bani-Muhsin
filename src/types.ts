@@ -39,6 +39,7 @@ export interface UserProfile {
   role: 'viewer' | 'editor' | 'admin';
   status: 'pending' | 'approved' | 'rejected';
   requestedAt?: string;
+  password?: string;
 }
 
 export interface AuditEntry {

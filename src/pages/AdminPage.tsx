@@ -150,30 +150,42 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     });
 
     // Listen to Users (Admin only)
-    const unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
-      const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
-      setUsers(usersData);
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'users');
-    });
+    let unsubscribeUsers: (() => void) | null = null;
+    if (userProfile?.role === 'admin') {
+      unsubscribeUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
+        const usersData = snapshot.docs.map(doc => doc.data() as UserProfile);
+        setUsers(usersData);
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'users');
+      });
+    }
 
-    // Listen to Audit Logs
-    const unsubscribeAudit = onSnapshot(query(collection(db, 'auditLog'), orderBy('timestamp', 'desc')), (snapshot) => {
-      const logs = snapshot.docs.map(doc => doc.data() as AuditEntry);
-      if (logs.length > 0) {
-        setAuditLogs(logs);
-      } else {
-        fetch('/api/audit-log').then(res => res.json()).then(logs => setAuditLogs(logs));
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'auditLog');
-    });
+    // Listen to Audit Logs (Admin only)
+    let unsubscribeAudit: (() => void) | null = null;
+    if (userProfile?.role === 'admin') {
+      unsubscribeAudit = onSnapshot(query(collection(db, 'auditLog'), orderBy('timestamp', 'desc')), (snapshot) => {
+        const logs = snapshot.docs.map(doc => doc.data() as AuditEntry);
+        if (logs.length > 0) {
+          setAuditLogs(logs);
+        } else {
+          fetch('/api/audit-log').then(res => res.json()).then(logs => setAuditLogs(logs));
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, 'auditLog');
+      });
+    }
+
+    const handlePopState = () => {
+      // Logic for popstate if needed
+    };
+    window.addEventListener('popstate', handlePopState);
 
     return () => {
       unsubscribeSettings();
       unsubscribeGallery();
-      unsubscribeUsers();
-      unsubscribeAudit();
+      if (unsubscribeUsers) unsubscribeUsers();
+      if (unsubscribeAudit) unsubscribeAudit();
+      window.removeEventListener('popstate', handlePopState);
     };
   }, []);
 
@@ -230,15 +242,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     }
   };
 
-  const saveChanges = async () => {
+  const saveChanges = async (overrideData?: FamilyMember, customAuditEntry?: AuditEntry) => {
     setSaving(true);
     try {
       const timestamp = new Date().toISOString();
+      const dataToSave = overrideData || data;
       
       // Save to Firebase
       try {
         await setDoc(doc(db, 'settings', 'global'), {
-          familyTree: data,
+          familyTree: dataToSave,
           history: history,
           lastUpdate: timestamp
         });
@@ -260,22 +273,33 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       }
       
       // Add Audit Log
-      const auditId = Math.random().toString(36).substring(2, 11);
-      try {
-        await setDoc(doc(db, 'auditLog', auditId), {
-          id: auditId,
-          timestamp: timestamp,
-          userEmail: editorName,
-          action: 'UPDATE_ALL',
-          details: 'Updated family tree, history, and gallery'
-        });
-      } catch (err) {
-        console.error('Error saving audit log:', err);
-        handleFirestoreError(err, OperationType.WRITE, 'auditLog/' + auditId);
-        throw new Error('Gagal menyimpan catatan audit.');
+      if (customAuditEntry) {
+        try {
+          await setDoc(doc(db, 'auditLog', customAuditEntry.id), customAuditEntry);
+        } catch (err) {
+          console.error('Error saving custom audit log:', err);
+          handleFirestoreError(err, OperationType.WRITE, 'auditLog/' + customAuditEntry.id);
+        }
+      } else {
+        const auditId = Math.random().toString(36).substring(2, 11);
+        try {
+          await setDoc(doc(db, 'auditLog', auditId), {
+            id: auditId,
+            timestamp: timestamp,
+            userEmail: editorName,
+            action: 'UPDATE_ALL',
+            details: 'Updated family tree, history, and gallery'
+          });
+        } catch (err) {
+          console.error('Error saving audit log:', err);
+          handleFirestoreError(err, OperationType.WRITE, 'auditLog/' + auditId);
+        }
       }
 
-      alert('Perubahan berhasil disimpan ke Firebase!');
+      setLastSaved(timestamp);
+      if (!overrideData) {
+        alert('Perubahan berhasil disimpan ke Firebase!');
+      }
     } catch (err) {
       console.error('saveChanges failed:', err);
       alert(`Gagal menyimpan perubahan: ${err instanceof Error ? err.message : String(err)}`);
@@ -391,6 +415,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     setData(newData);
   };
 
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+
   const removeMember = (id: string) => {
     if (id === 'root') return;
     const newData = JSON.parse(JSON.stringify(data));
@@ -402,11 +428,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         if (index !== -1) {
           if (userProfile?.role === 'admin') {
             // Admin can delete immediately
-            if (!window.confirm(`Hapus ${node.children[index].name} secara permanen?`)) return false;
             node.children.splice(index, 1);
           } else {
             // Editor requests deletion
-            if (!window.confirm(`Ajukan penghapusan untuk ${node.children[index].name}?`)) return false;
             node.children[index].pendingDeletion = true;
             node.children[index].deletionRequestedBy = editorName;
             node.children[index].deletionRequestedAt = timestamp;
@@ -419,8 +443,23 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       }
       return false;
     };
-    findAndProcess(newData);
-    setData(newData);
+    
+    if (findAndProcess(newData)) {
+      setData(newData);
+      
+      // Auto-save for deletion requests to ensure admin sees them
+      if (userProfile?.role !== 'admin') {
+        const entry: AuditEntry = {
+          id: Date.now().toString(),
+          timestamp: new Date().toISOString(),
+          userEmail: userProfile?.email || 'unknown',
+          action: 'REQUEST_DELETION',
+          details: `Mengajukan penghapusan anggota ID: ${id}`
+        };
+        saveChanges(newData, entry);
+      }
+    }
+    setConfirmDelete(null);
   };
 
   const addGalleryItem = () => {
@@ -613,7 +652,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       action: 'APPROVE_DELETION',
       details: `Menyetujui penghapusan anggota ID: ${id}`
     };
-    setAuditLogs(prev => [entry, ...prev]);
+    
+    // Auto-save for approval
+    saveChanges(newData, entry);
   };
 
   const rejectDeletion = (id: string) => {
@@ -634,6 +675,16 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     };
     findAndCancel(newData);
     setData(newData);
+    
+    // Auto-save for rejection
+    const entry: AuditEntry = {
+      id: Date.now().toString(),
+      timestamp: new Date().toISOString(),
+      userEmail: userProfile?.email || 'unknown',
+      action: 'REJECT_DELETION',
+      details: `Menolak penghapusan anggota ID: ${id}`
+    };
+    saveChanges(newData, entry);
   };
 
   const getDeletionRequests = (node: FamilyMember): FamilyMember[] => {
@@ -687,7 +738,8 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           </div>
           {hasChildren && (
             <button 
-              onClick={() => toggleCollapse(node.id)}
+              onClick={(e) => { e.stopPropagation(); toggleCollapse(node.id); }}
+              onPointerDown={(e) => e.stopPropagation()}
               className="p-1 text-brand-olive/40 hover:text-brand-olive transition-colors"
               title={isCollapsed ? "Tampilkan Keturunan" : "Sembunyikan Keturunan"}
             >
@@ -698,11 +750,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             type="text"
             value={node.name}
             onChange={(e) => updateMember(node.id, { name: e.target.value })}
+            onPointerDown={(e) => e.stopPropagation()}
             className="border-none focus:ring-0 font-medium text-sm flex-grow"
           />
           <select
             value={node.type}
             onChange={(e) => updateMember(node.id, { type: e.target.value as any })}
+            onPointerDown={(e) => e.stopPropagation()}
             className="text-xs border-brand-olive/10 rounded-lg p-1"
           >
             <option value="ancestor">Leluhur</option>
@@ -717,6 +771,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             placeholder="Pasangan (opsional)"
             value={node.spouse || ''}
             onChange={(e) => updateMember(node.id, { spouse: e.target.value })}
+            onPointerDown={(e) => e.stopPropagation()}
             className="text-xs border-brand-olive/10 rounded-lg p-1 w-32"
           />
           {node.spouse && (
@@ -725,6 +780,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                 type="checkbox"
                 checked={node.spouseIsDeceased || false}
                 onChange={(e) => updateMember(node.id, { spouseIsDeceased: e.target.checked })}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="rounded text-brand-olive focus:ring-brand-olive w-3 h-3"
               />
               Pasangan Alm/ah
@@ -735,26 +791,67 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
               type="checkbox"
               checked={node.isDeceased || false}
               onChange={(e) => updateMember(node.id, { isDeceased: e.target.checked })}
+              onPointerDown={(e) => e.stopPropagation()}
               className="rounded text-brand-olive focus:ring-brand-olive"
             />
             Almarhum/ah
           </label>
-          <button onClick={() => addChild(node.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" title="Tambah Anak">
+          <button 
+            onClick={(e) => { e.stopPropagation(); addChild(node.id); }} 
+            onPointerDown={(e) => e.stopPropagation()}
+            className="p-1 text-emerald-600 hover:bg-emerald-50 rounded" 
+            title="Tambah Anak"
+          >
             <Plus size={18} />
           </button>
-          <button onClick={() => addSpouse(node.id)} className="p-1 text-rose-600 hover:bg-rose-50 rounded" title="Tambah Pasangan">
+          <button 
+            onClick={(e) => { e.stopPropagation(); addSpouse(node.id); }} 
+            onPointerDown={(e) => e.stopPropagation()}
+            className="p-1 text-rose-600 hover:bg-rose-50 rounded" 
+            title="Tambah Pasangan"
+          >
             <Heart size={18} />
           </button>
           {node.id !== 'root' && (
-            <button 
-              onClick={() => removeMember(node.id)} 
-              className={`p-1 rounded transition-all ${node.pendingDeletion ? 'text-amber-600 bg-amber-50' : 'text-rose-600 hover:bg-rose-50'}`}
-              title={node.pendingDeletion ? 'Menunggu Persetujuan Hapus' : 'Hapus'}
-            >
-              {node.pendingDeletion ? <AlertCircle size={18} /> : <Trash2 size={18} />}
-            </button>
+            <div className="flex items-center gap-1">
+              <button 
+                onClick={(e) => { 
+                  e.stopPropagation(); 
+                  if (confirmDelete === node.id) {
+                    removeMember(node.id);
+                  } else {
+                    setConfirmDelete(node.id);
+                  }
+                }} 
+                onPointerDown={(e) => e.stopPropagation()}
+                className={cn(
+                  "p-1 rounded transition-all",
+                  node.pendingDeletion ? 'text-amber-600 bg-amber-50' : 'text-rose-600 hover:bg-rose-50',
+                  confirmDelete === node.id && "bg-rose-600 text-white hover:bg-rose-700"
+                )}
+                title={node.pendingDeletion ? 'Menunggu Persetujuan Hapus' : confirmDelete === node.id ? 'Klik lagi untuk konfirmasi' : 'Hapus'}
+              >
+                {node.pendingDeletion ? <AlertCircle size={18} /> : confirmDelete === node.id ? <Check size={18} /> : <Trash2 size={18} />}
+              </button>
+              {confirmDelete === node.id && (
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
+                  onPointerDown={(e) => e.stopPropagation()}
+                  className="p-1 text-brand-ink/40 hover:text-brand-ink hover:bg-brand-cream rounded"
+                  title="Batal"
+                >
+                  <XIcon size={18} />
+                </button>
+              )}
+            </div>
           )}
         </div>
+        {confirmDelete === node.id && (
+          <div className="ml-8 mt-1 text-[10px] text-rose-600 flex items-center gap-2 bg-rose-50 px-3 py-1 rounded-full w-fit animate-pulse border border-rose-100">
+            <AlertCircle size={10} />
+            Konfirmasi {userProfile?.role === 'admin' ? 'Hapus Permanen' : 'Ajukan Hapus'}
+          </div>
+        )}
         {node.pendingDeletion && (
           <div className="ml-8 mt-1 text-[10px] text-amber-600 flex items-center gap-1 bg-amber-50 px-2 py-0.5 rounded-full w-fit">
             <AlertCircle size={10} />
@@ -851,6 +948,12 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                 </p>
               )}
             </div>
+            <div className="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 max-w-2xl">
+              <AlertCircle size={18} className="text-amber-600 mt-0.5 flex-shrink-0" />
+              <p className="text-[11px] text-amber-800 leading-relaxed">
+                <span className="font-bold">Pemberitahuan:</span> Data yang tertulis di website ini bukan merupakan data yang 100% valid dan akan selalu dinamis diperbarui oleh Admin atau Editor. Pastikan untuk memverifikasi informasi penting secara langsung.
+              </p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-3">
             <button
@@ -908,7 +1011,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
               Keluar
             </button>
             <button
-              onClick={saveChanges}
+              onClick={() => saveChanges()}
               disabled={saving}
               className="flex items-center bg-brand-olive text-white px-6 py-3 rounded-full hover:shadow-lg transition-all disabled:opacity-50"
             >
@@ -932,6 +1035,11 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                     <div>
                       <p className="font-bold text-sm">{u.displayName || 'Tanpa Nama'}</p>
                       <p className="text-[10px] opacity-50">{u.email}</p>
+                      {u.password && (
+                        <p className="text-[10px] text-rose-600 font-mono mt-1 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 inline-block">
+                          Pass: {u.password}
+                        </p>
+                      )}
                     </div>
                     <span className={cn(
                       "text-[9px] font-bold uppercase px-2 py-0.5 rounded-full",

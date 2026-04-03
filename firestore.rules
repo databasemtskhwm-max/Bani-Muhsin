@@ -112,7 +112,8 @@ service cloud.firestore {
     function isValidUser(data) {
       return hasRequiredFields(data, ['uid', 'email', 'role', 'status']) &&
              data.role in ['viewer', 'editor', 'admin'] &&
-             data.status in ['pending', 'approved', 'rejected'];
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (!('password' in data) || (data.password is string && data.password.size() < 100));
     }
 
     function isValidNews(data) {
@@ -133,7 +134,7 @@ service cloud.firestore {
 
     // Rules
     match /users/{userId} {
-      allow read: if isAuthenticated();
+      allow read: if isOwner(userId) || isAdmin();
       // Users can create their own profile as 'viewer' and 'pending'
       allow create: if isOwner(userId) && 
                       request.resource.data.role == 'viewer' && 
