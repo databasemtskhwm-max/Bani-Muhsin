@@ -1085,14 +1085,6 @@ export default function App() {
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  <a 
-                    href="https://wa.me/6285950319228" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="w-full py-4 rounded-full bg-[#25D366] text-white flex items-center justify-center gap-3 font-bold hover:shadow-xl transition-all hover:scale-[1.02] active:scale-95"
-                  >
-                    <MessageCircle size={20} /> Hubungi Admin (WhatsApp)
-                  </a>
                   <button
                     onClick={() => setIsAboutModalOpen(false)}
                     className="w-full py-4 rounded-full border border-brand-olive/10 text-brand-ink/60 hover:bg-brand-cream transition-all font-bold"
@@ -1237,6 +1229,54 @@ export default function App() {
             <h2 className="serif text-5xl md:text-8xl mb-16 italic font-light">Tentang Bani Muhsin</h2>
             <div className="space-y-10 text-xl md:text-2xl text-white/90 leading-[1.8] font-light whitespace-pre-wrap">
               {historyText || "Memuat sejarah..."}
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ & Contact Section */}
+        <section className="px-6 py-24 bg-brand-cream/30 border-t border-brand-olive/10">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-16">
+              <h2 className="serif text-4xl md:text-5xl mb-4">Bantuan & FAQ</h2>
+              <p className="text-brand-ink/60 italic">Pertanyaan yang sering diajukan mengenai penggunaan platform.</p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              <div className="bg-white p-8 rounded-[2.5rem] border border-brand-olive/10 shadow-sm hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive mb-4">
+                  <Settings size={20} />
+                </div>
+                <h3 className="serif text-xl mb-3">Bagaimana cara menjadi editor?</h3>
+                <p className="text-brand-ink/70 text-sm leading-relaxed">
+                  Untuk menjadi editor, Anda harus mendaftar/masuk terlebih dahulu. Setelah masuk, Anda akan melihat tombol <span className="font-bold text-brand-olive">"Ajukan Jadi Editor"</span> di menu navigasi atas. Klik tombol tersebut dan tunggu persetujuan dari Admin Utama.
+                </p>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2.5rem] border border-brand-olive/10 shadow-sm hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive mb-4">
+                  <TreeDeciduous size={20} />
+                </div>
+                <h3 className="serif text-xl mb-3">Bagaimana cara mengedit silsilah?</h3>
+                <p className="text-brand-ink/70 text-sm leading-relaxed">
+                  Setelah akun Anda dikonfirmasi sebagai Editor, Anda dapat mengakses <span className="font-bold text-brand-olive">"Panel Editor"</span>. Di sana, Anda bisa mengubah nama, menambah pasangan, menambah anak, atau menandai anggota yang sudah wafat. Setiap perubahan akan tercatat dalam log audit.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-white p-10 rounded-[3rem] border border-brand-olive/10 shadow-xl text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-brand-olive/20 to-transparent"></div>
+              <h3 className="serif text-2xl mb-4">Masih butuh bantuan?</h3>
+              <p className="text-brand-ink/60 text-sm mb-8 max-w-md mx-auto">
+                Jika Anda memiliki kendala teknis atau ingin memberikan masukan, silakan hubungi Admin Utama melalui WhatsApp.
+              </p>
+              <a 
+                href="https://wa.me/6285950319228" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-3 bg-[#25D366] text-white px-10 py-4 rounded-full font-bold hover:shadow-2xl transition-all hover:scale-105 active:scale-95"
+              >
+                <MessageCircle size={20} /> Hubungi Admin (WhatsApp)
+              </a>
             </div>
           </div>
         </section>
