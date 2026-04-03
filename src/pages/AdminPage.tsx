@@ -427,35 +427,56 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   };
 
   const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
-    console.log('handleFileUpload (Local API) called with file:', file.name);
+    console.log('handleFileUpload (Firebase Storage) called with file:', file.name);
     
     try {
+      // 1. Compress image
+      const options = {
+        maxSizeMB: 0.5,
+        maxWidthOrHeight: 1200,
+        useWebWorker: true,
+        initialQuality: 0.8
+      };
+      
+      console.log('Compressing image...');
+      onProgress(10);
+      const compressedFile = await imageCompression(file, options);
+      console.log('Original size:', file.size / 1024, 'KB');
+      console.log('Compressed size:', compressedFile.size / 1024, 'KB');
       onProgress(20);
-      const formData = new FormData();
-      formData.append('file', file);
 
-      console.log('Sending file to local server API...');
-      onProgress(40);
-      
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
+      // 2. Upload to Firebase Storage
+      const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, compressedFile);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on(
+          'state_changed',
+          (snapshot) => {
+            const progress = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100);
+            // Map 0-100 to 20-95 (leaving 5% for getDownloadURL)
+            onProgress(20 + (progress * 0.75));
+          },
+          (error) => {
+            console.error('Firebase upload error:', error);
+            reject(error);
+          },
+          async () => {
+            try {
+              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+              console.log('Upload successful! URL:', downloadURL);
+              onProgress(100);
+              resolve(downloadURL);
+            } catch (err) {
+              console.error('Error getting download URL:', err);
+              reject(err);
+            }
+          }
+        );
       });
-
-      onProgress(80);
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Gagal mengunggah ke server lokal.');
-      }
-
-      const result = await response.json();
-      console.log('Upload successful! URL:', result.url);
-      onProgress(100);
-      
-      return result.url;
     } catch (error: any) {
-      console.error('Local upload error:', error);
-      throw new Error(`Gagal mengunggah: ${error.message || 'Kesalahan server'}`);
+      console.error('Upload error:', error);
+      throw new Error(`Gagal mengunggah: ${error.message || 'Kesalahan tidak diketahui'}`);
     }
   };
 
