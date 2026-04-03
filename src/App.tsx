@@ -4,7 +4,7 @@ import { FamilyTreeInteractive } from './components/FamilyTreeInteractive';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
-import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X, Info, MessageCircle, Menu } from 'lucide-react';
+import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X, Info, MessageCircle, Menu, AlertCircle, Shield } from 'lucide-react';
 import { FamilyMember, NewsItem, GalleryItem, UserProfile } from './types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -63,6 +63,7 @@ export default function App() {
   const [isGallery, setIsGallery] = useState(window.location.pathname === '/gallery');
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [isProfileLoading, setIsProfileLoading] = useState(true);
   const getStats = (node: FamilyMember | null) => {
     if (!node) return { total: 0, gen2: 0, gen3: 0, gen4: 0, gen5: 0, deceased: 0 };
     
@@ -165,40 +166,56 @@ export default function App() {
   };
 
   useEffect(() => {
+    let unsubscribeProfile: (() => void) | null = null;
+
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
       setIsAuthReady(true);
+
+      if (unsubscribeProfile) {
+        unsubscribeProfile();
+        unsubscribeProfile = null;
+      }
+
       if (firebaseUser) {
-        // Sync User Profile
+        setIsProfileLoading(true);
+        // Real-time sync User Profile
         const userRef = doc(db, 'users', firebaseUser.uid);
-        const userSnap = await getDoc(userRef);
         
-        if (userSnap.exists()) {
-          let profile = userSnap.data() as UserProfile;
-          // Force admin role for the specific admin emails
-          const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com' || firebaseUser.email === 'admin@keluarga.com';
-          if (isMainAdmin && (profile.role !== 'admin' || profile.status !== 'approved')) {
-            const updatedProfile = { ...profile, role: 'admin' as const, status: 'approved' as const };
-            await setDoc(userRef, updatedProfile);
-            profile = updatedProfile;
+        unsubscribeProfile = onSnapshot(userRef, async (snapshot) => {
+          if (snapshot.exists()) {
+            let profile = snapshot.data() as UserProfile;
+            // Force admin role for the specific admin emails
+            const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com' || firebaseUser.email === 'admin@keluarga.com' || firebaseUser.email === 'zahirzarir@gmail.com';
+            if (isMainAdmin && (profile.role !== 'admin' || profile.status !== 'approved')) {
+              const updatedProfile = { ...profile, role: 'admin' as const, status: 'approved' as const };
+              await setDoc(userRef, updatedProfile);
+              // The next snapshot will have the updated data
+            } else {
+              setUserProfile(profile);
+              setIsProfileLoading(false);
+            }
+          } else {
+            // Create default profile
+            const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com' || firebaseUser.email === 'admin@keluarga.com' || firebaseUser.email === 'zahirzarir@gmail.com';
+            const newProfile: UserProfile = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || '',
+              displayName: firebaseUser.displayName || (isMainAdmin ? 'Admin Utama' : ''),
+              role: isMainAdmin ? 'admin' : 'viewer',
+              status: isMainAdmin ? 'approved' : 'pending',
+              requestedAt: new Date().toISOString()
+            };
+            await setDoc(userRef, newProfile);
+            // The next snapshot will have the new data
           }
-          setUserProfile(profile);
-        } else {
-          // Create default profile
-          const isMainAdmin = firebaseUser.email === 'databasemtskhwm@gmail.com' || firebaseUser.email === 'admin@keluarga.com';
-          const newProfile: UserProfile = {
-            uid: firebaseUser.uid,
-            email: firebaseUser.email || '',
-            displayName: firebaseUser.displayName || (isMainAdmin ? 'Admin Utama' : ''),
-            role: isMainAdmin ? 'admin' : 'viewer',
-            status: isMainAdmin ? 'approved' : 'pending',
-            requestedAt: new Date().toISOString()
-          };
-          await setDoc(userRef, newProfile);
-          setUserProfile(newProfile);
-        }
+        }, (error) => {
+          handleFirestoreError(error, OperationType.GET, 'users/' + firebaseUser.uid);
+          setIsProfileLoading(false);
+        });
       } else {
         setUserProfile(null);
+        setIsProfileLoading(false);
       }
     });
 
@@ -240,6 +257,7 @@ export default function App() {
 
     return () => {
       unsubscribeAuth();
+      if (unsubscribeProfile) unsubscribeProfile();
       unsubscribeSettings();
       unsubscribeGallery();
       window.removeEventListener('popstate', handlePopState);
@@ -399,10 +417,109 @@ export default function App() {
   }
 
   if (isAdmin) {
+    if (!isAuthReady || isProfileLoading) {
+      return <div className="min-h-screen bg-brand-cream flex items-center justify-center p-6 text-center">
+        <div className="serif text-2xl text-brand-olive animate-pulse italic">Memuat profil...</div>
+      </div>;
+    }
+
     if (!user) {
       navigateTo('/login');
       return null;
     }
+
+    const hasAccess = userProfile?.status === 'approved' && (userProfile?.role === 'admin' || userProfile?.role === 'editor');
+
+    if (!hasAccess) {
+      // Check if user is approved
+      if (userProfile?.status === 'pending') {
+        return (
+          <div className="min-h-screen bg-brand-cream flex items-center justify-center p-6 text-center">
+            <div className="max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-brand-olive/10">
+              <div className="w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center text-amber-600 mx-auto mb-8 animate-pulse">
+                <Settings size={40} />
+              </div>
+              <h2 className="serif text-3xl text-brand-ink mb-4">Menunggu Persetujuan</h2>
+              <p className="text-brand-ink/60 mb-8 leading-relaxed">
+                Pengajuan Anda sebagai {userProfile?.role === 'admin' ? 'Admin' : 'Editor'} sedang dalam proses peninjauan oleh Admin Utama. 
+                Mohon tunggu hingga akun Anda disetujui untuk dapat mengakses Panel Admin.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => navigateTo('/')}
+                  className="w-full py-4 rounded-full bg-brand-olive text-white font-bold hover:shadow-xl transition-all"
+                >
+                  Kembali ke Beranda
+                </button>
+                <button 
+                  onClick={handleLogout}
+                  className="w-full py-4 rounded-full border border-brand-olive/10 text-brand-ink/60 hover:bg-brand-cream transition-all font-bold"
+                >
+                  Keluar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      if (userProfile?.status === 'rejected') {
+        return (
+          <div className="min-h-screen bg-brand-cream flex items-center justify-center p-6 text-center">
+            <div className="max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-brand-olive/10">
+              <div className="w-20 h-20 rounded-full bg-rose-50 flex items-center justify-center text-rose-600 mx-auto mb-8">
+                <X size={40} />
+              </div>
+              <h2 className="serif text-3xl text-brand-ink mb-4">Akses Ditolak</h2>
+              <p className="text-brand-ink/60 mb-8 leading-relaxed">
+                Maaf, pengajuan akses Anda telah ditolak oleh Admin Utama. 
+                Silakan hubungi Admin jika Anda merasa ini adalah kesalahan.
+              </p>
+              <button 
+                onClick={() => navigateTo('/')}
+                className="w-full py-4 rounded-full bg-brand-olive text-white font-bold hover:shadow-xl transition-all"
+              >
+                Kembali ke Beranda
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      if (userProfile?.role === 'viewer') {
+        return (
+          <div className="min-h-screen bg-brand-cream flex items-center justify-center p-6 text-center">
+            <div className="max-w-md bg-white p-10 rounded-[3rem] shadow-2xl border border-brand-olive/10">
+              <div className="w-20 h-20 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive mx-auto mb-8">
+                <Shield size={40} />
+              </div>
+              <h2 className="serif text-3xl text-brand-ink mb-4">Akses Terbatas</h2>
+              <p className="text-brand-ink/60 mb-8 leading-relaxed">
+                Anda saat ini terdaftar sebagai Pengunjung. Silakan ajukan akses Editor untuk dapat mengelola silsilah keluarga.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={requestEditorAccess}
+                  className="w-full py-4 rounded-full bg-brand-olive text-white font-bold hover:shadow-xl transition-all"
+                >
+                  Ajukan Jadi Editor
+                </button>
+                <button 
+                  onClick={() => navigateTo('/')}
+                  className="w-full py-4 rounded-full border border-brand-olive/10 text-brand-ink/60 hover:bg-brand-cream transition-all font-bold"
+                >
+                  Kembali ke Beranda
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
+      navigateTo('/');
+      return null;
+    }
+
     return <AdminPage user={user} userProfile={userProfile} onLogout={handleLogout} />;
   }
 
@@ -1241,7 +1358,7 @@ export default function App() {
               <p className="text-brand-ink/60 italic">Pertanyaan yang sering diajukan mengenai penggunaan platform.</p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
               <div className="bg-white p-8 rounded-[2.5rem] border border-brand-olive/10 shadow-sm hover:shadow-md transition-all">
                 <div className="w-10 h-10 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive mb-4">
                   <Settings size={20} />
@@ -1259,6 +1376,16 @@ export default function App() {
                 <h3 className="serif text-xl mb-3">Bagaimana cara mengedit silsilah?</h3>
                 <p className="text-brand-ink/70 text-sm leading-relaxed">
                   Setelah akun Anda dikonfirmasi sebagai Editor, Anda dapat mengakses <span className="font-bold text-brand-olive">"Panel Editor"</span>. Di sana, Anda bisa mengubah nama, menambah pasangan, menambah anak, atau menandai anggota yang sudah wafat. Setiap perubahan akan tercatat dalam log audit.
+                </p>
+              </div>
+
+              <div className="bg-white p-8 rounded-[2.5rem] border border-brand-olive/10 shadow-sm hover:shadow-md transition-all">
+                <div className="w-10 h-10 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive mb-4">
+                  <AlertCircle size={20} />
+                </div>
+                <h3 className="serif text-xl mb-3">Validitas Data</h3>
+                <p className="text-brand-ink/70 text-sm leading-relaxed">
+                  Data yang tertulis di website ini bukan merupakan data yang 100% valid dan akan selalu dinamis diperbarui oleh admin ataupun siapapun yang mengajukan diri menjadi bagian dari editor.
                 </p>
               </div>
             </div>
@@ -1288,6 +1415,9 @@ export default function App() {
           <TreeDeciduous className="text-brand-olive" size={20} />
           <span className="serif text-xl font-semibold">Bani Muhsin</span>
         </div>
+        <p className="text-[10px] text-brand-ink/40 max-w-md mx-auto mb-6 leading-relaxed italic">
+          Data di website ini bersifat dinamis dan terus diperbarui oleh tim editor. Validitas data bergantung pada kontribusi bersama keluarga besar.
+        </p>
         <p className="text-xs uppercase tracking-widest opacity-50">
           &copy; {new Date().getFullYear()} Keluarga Besar Bani Muhsin. Dibuat dengan cinta.
         </p>

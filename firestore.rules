@@ -64,14 +64,19 @@ service cloud.firestore {
       return isAuthenticated() && (
         (request.auth.token.email == "databasemtskhwm@gmail.com") ||
         (request.auth.token.email == "admin@keluarga.com") ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        (request.auth.token.email == "zahirzarir@gmail.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved')
       );
     }
 
     function isEditor() {
       return isAuthenticated() && (
         isAdmin() || 
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor')
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'editor' &&
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'approved')
       );
     }
 
@@ -134,11 +139,16 @@ service cloud.firestore {
                       request.resource.data.role == 'viewer' && 
                       request.resource.data.status == 'pending' &&
                       isValidUser(request.resource.data);
-      // Users can update their own profile but NOT their role/status
-      allow update: if isOwner(userId) && 
-                      request.resource.data.role == resource.data.role && 
-                      request.resource.data.status == resource.data.status &&
-                      isValidUser(request.resource.data);
+      // Users can update their own profile
+      allow update: if isOwner(userId) && (
+                      // 1. Update non-sensitive fields (keeping role/status same)
+                      (request.resource.data.role == resource.data.role && 
+                       request.resource.data.status == resource.data.status) ||
+                      // 2. Request editor access (viewer -> editor, status becomes pending)
+                      (resource.data.role == 'viewer' && 
+                       request.resource.data.role == 'editor' && 
+                       request.resource.data.status == 'pending')
+                    ) && isValidUser(request.resource.data);
       // Admin can do anything
       allow write: if isAdmin() && isValidUser(request.resource.data);
     }
