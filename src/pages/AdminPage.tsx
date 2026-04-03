@@ -427,6 +427,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   };
 
   const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
+    console.log('handleFileUpload called with file:', file.name);
     if (!storage) {
       throw new Error('Firebase Storage tidak terinisialisasi. Pastikan Firebase Storage sudah diaktifkan di konsol Firebase.');
     }
@@ -439,51 +440,51 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
     };
 
     let fileToUpload = file;
-    try {
-      console.log('Starting image compression...');
-      fileToUpload = await imageCompression(file, options);
-      console.log('Compression successful:', fileToUpload.size / 1024, 'KB');
-    } catch (compErr) {
-      console.warn('Compression failed, uploading original:', compErr);
-      fileToUpload = file;
+    if (file.size > 500 * 1024) {
+      try {
+        console.log('Starting image compression for file:', file.name, 'size:', Math.round(file.size / 1024), 'KB');
+        fileToUpload = await imageCompression(file, options);
+        console.log('Compression successful:', Math.round(fileToUpload.size / 1024), 'KB');
+      } catch (compErr) {
+        console.warn('Compression failed, uploading original:', compErr);
+        fileToUpload = file;
+      }
+    } else {
+      console.log('File is small enough, skipping compression:', Math.round(file.size / 1024), 'KB');
     }
 
     try {
+      console.log('Creating storage reference...');
       const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
-      const uploadTask = uploadBytesResumable(storageRef, fileToUpload);
-
-      return new Promise((resolve, reject) => {
-        uploadTask.on('state_changed', 
-          (snapshot) => {
-            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-            onProgress(Math.round(progress));
-          }, 
-          (error) => {
-            console.error('Upload error details:', error);
-            let message = 'Gagal mengunggah.';
-            if (error.code === 'storage/unauthorized') {
-              message = 'Izin ditolak. Pastikan Storage Rules mengizinkan unggahan.';
-            } else if (error.code === 'storage/canceled') {
-              message = 'Unggahan dibatalkan.';
-            } else if (error.code === 'storage/unknown') {
-              message = 'Kesalahan tidak diketahui pada Storage.';
-            }
-            reject(new Error(`${message} (${error.code})`));
-          }, 
-          async () => {
-            try {
-              const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-              resolve(downloadURL);
-            } catch (urlErr) {
-              console.error('Error getting download URL:', urlErr);
-              reject(new Error('Gagal mendapatkan URL unduhan setelah unggah.'));
-            }
-          }
-        );
-      });
-    } catch (error) {
-      console.error('File upload process error:', error);
-      throw error;
+      console.log('Starting upload (simple mode)...');
+      
+      // Set progress to 50% to show something is happening
+      onProgress(50);
+      
+      const uploadResult = await uploadBytes(storageRef, fileToUpload);
+      console.log('Upload successful, getting download URL...');
+      
+      onProgress(90);
+      const downloadURL = await getDownloadURL(uploadResult.ref);
+      console.log('Download URL obtained:', downloadURL);
+      onProgress(100);
+      
+      return downloadURL;
+    } catch (error: any) {
+      console.error('Upload error details:', error);
+      let message = 'Gagal mengunggah.';
+      
+      if (error.code === 'storage/unauthorized') {
+        message = 'Izin ditolak. Pastikan Storage Rules di Firebase Console sudah diatur ke "allow read, write: if request.auth != null;".';
+      } else if (error.code === 'storage/canceled') {
+        message = 'Unggahan dibatalkan.';
+      } else if (error.code === 'storage/retry-limit-exceeded') {
+        message = 'Batas waktu habis. Periksa koneksi internet Anda.';
+      } else if (error.message && error.message.includes('CORS')) {
+        message = 'Masalah koneksi (CORS). Silakan tunggu 5 menit atau coba di browser lain.';
+      }
+      
+      throw new Error(`${message} (${error.code || 'unknown'})`);
     }
   };
 
@@ -542,9 +543,9 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
               </div>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
-              <Upload size={14} />
-              <span>Unggah Foto</span>
+            <div className="flex items-center gap-1">
+              <Upload size={12} />
+              <span>Unggah</span>
             </div>
           )}
         </button>
@@ -801,10 +802,21 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                 </button>
               </div>
             )}
-            <FileUploadButton 
-              onUpload={(url) => updateMember(node.id, { photoUrl: url })} 
-              className="flex-grow"
-            />
+            <div className="flex flex-col flex-grow gap-1">
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  placeholder="URL Foto (atau unggah)"
+                  value={node.photoUrl || ''}
+                  onChange={(e) => updateMember(node.id, { photoUrl: e.target.value })}
+                  className="text-[10px] border-brand-olive/10 rounded-lg p-1 flex-grow"
+                />
+                <FileUploadButton 
+                  onUpload={(url) => updateMember(node.id, { photoUrl: url })} 
+                  className="w-24"
+                />
+              </div>
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] opacity-50">Lahir:</span>
