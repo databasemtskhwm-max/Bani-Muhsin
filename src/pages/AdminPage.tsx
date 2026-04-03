@@ -427,64 +427,35 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   };
 
   const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
-    console.log('handleFileUpload called with file:', file.name);
-    if (!storage) {
-      throw new Error('Firebase Storage tidak terinisialisasi. Pastikan Firebase Storage sudah diaktifkan di konsol Firebase.');
-    }
-
-    // Compression options
-    const options = {
-      maxSizeMB: 0.5, // Max 500KB
-      maxWidthOrHeight: 1200,
-      useWebWorker: false, // Disable web worker for better compatibility in iframe environments
-    };
-
-    let fileToUpload = file;
-    if (file.size > 500 * 1024) {
-      try {
-        console.log('Starting image compression for file:', file.name, 'size:', Math.round(file.size / 1024), 'KB');
-        fileToUpload = await imageCompression(file, options);
-        console.log('Compression successful:', Math.round(fileToUpload.size / 1024), 'KB');
-      } catch (compErr) {
-        console.warn('Compression failed, uploading original:', compErr);
-        fileToUpload = file;
-      }
-    } else {
-      console.log('File is small enough, skipping compression:', Math.round(file.size / 1024), 'KB');
-    }
-
+    console.log('handleFileUpload (Local API) called with file:', file.name);
+    
     try {
-      console.log('Creating storage reference...');
-      const storageRef = ref(storage, `uploads/${Date.now()}-${file.name}`);
-      console.log('Starting upload (simple mode)...');
+      onProgress(20);
+      const formData = new FormData();
+      formData.append('file', file);
+
+      console.log('Sending file to local server API...');
+      onProgress(40);
       
-      // Set progress to 50% to show something is happening
-      onProgress(50);
-      
-      const uploadResult = await uploadBytes(storageRef, fileToUpload);
-      console.log('Upload successful, getting download URL...');
-      
-      onProgress(90);
-      const downloadURL = await getDownloadURL(uploadResult.ref);
-      console.log('Download URL obtained:', downloadURL);
+      const response = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+      });
+
+      onProgress(80);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Gagal mengunggah ke server lokal.');
+      }
+
+      const result = await response.json();
+      console.log('Upload successful! URL:', result.url);
       onProgress(100);
       
-      return downloadURL;
+      return result.url;
     } catch (error: any) {
-      console.error('Upload error details:', error);
-      let message = 'Gagal mengunggah.';
-      
-      if (error.code === 'storage/unauthorized') {
-        message = 'Izin ditolak. Pastikan Storage Rules di Firebase Console sudah diatur ke "allow read, write: if request.auth != null;".';
-      } else if (error.code === 'storage/canceled') {
-        message = 'Unggahan dibatalkan.';
-      } else if (error.code === 'storage/retry-limit-exceeded') {
-        message = 'Batas waktu habis. Periksa koneksi internet Anda.';
-      } else if (error.message && error.message.includes('CORS')) {
-        message = 'Masalah koneksi (CORS). Silakan tunggu 5 menit atau coba di browser lain.';
-      }
-      
-      throw new Error(`${message} (${error.code || 'unknown'})`);
+      console.error('Local upload error:', error);
+      throw new Error(`Gagal mengunggah: ${error.message || 'Kesalahan server'}`);
     }
   };
 
