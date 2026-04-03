@@ -23,17 +23,6 @@ service cloud.firestore {
     //   - author: string (optional)
     //   - imageUrl: string (optional, URL)
     //
-    // Collection: gallery
-    // Document ID: {photoId}
-    // Fields:
-    //   - id: string (required)
-    //   - headOfFamilyId: string (required)
-    //   - headOfFamilyName: string (optional)
-    //   - imageUrl: string (required, URL)
-    //   - caption: string (optional, 1-500 chars)
-    //   - date: string (optional, YYYY-MM-DD)
-    //   - uploadedBy: string (optional)
-    //
     // Collection: auditLog
     // Document ID: {logId}
     // Fields:
@@ -120,10 +109,6 @@ service cloud.firestore {
       return hasRequiredFields(data, ['id', 'title', 'content', 'date', 'category']);
     }
 
-    function isValidGallery(data) {
-      return hasRequiredFields(data, ['id', 'headOfFamilyId', 'imageUrl']);
-    }
-
     function isValidAudit(data) {
       return hasRequiredFields(data, ['id', 'timestamp', 'userEmail', 'action']);
     }
@@ -163,12 +148,6 @@ service cloud.firestore {
     match /news/{newsId} {
       allow read: if true;
       allow create, update: if isEditor() && isValidNews(request.resource.data);
-      allow delete: if isEditor();
-    }
-
-    match /gallery/{photoId} {
-      allow read: if true;
-      allow create, update: if isEditor() && isValidGallery(request.resource.data);
       allow delete: if isEditor();
     }
 

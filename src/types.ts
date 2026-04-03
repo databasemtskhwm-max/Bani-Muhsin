@@ -49,13 +49,3 @@ export interface AuditEntry {
   action: string;
   details: string;
 }
-
-export interface GalleryItem {
-  id: string;
-  headOfFamilyId: string;
-  headOfFamilyName: string;
-  imageUrl: string;
-  caption: string;
-  date: string;
-  uploadedBy: string;
-}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
+import { FamilyMember, AuditEntry, UserProfile } from '../types';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -70,7 +70,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
 
   const allMembers = data ? getAllMembers(data) : [];
 
-  const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditEntry[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -137,18 +136,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       setLoading(false);
     });
 
-    // Listen to Gallery
-    const unsubscribeGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
-      const galleryData = snapshot.docs.map(doc => doc.data() as GalleryItem);
-      if (galleryData.length > 0) {
-        setGallery(galleryData);
-      } else {
-        fetch('/api/gallery').then(res => res.json()).then(gData => setGallery(gData));
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'gallery');
-    });
-
     // Listen to Users (Admin only)
     let unsubscribeUsers: (() => void) | null = null;
     if (userProfile?.role === 'admin') {
@@ -182,7 +169,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
 
     return () => {
       unsubscribeSettings();
-      unsubscribeGallery();
       if (unsubscribeUsers) unsubscribeUsers();
       if (unsubscribeAudit) unsubscribeAudit();
       window.removeEventListener('popstate', handlePopState);
@@ -206,18 +192,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         throw new Error('Gagal menyimpan pengaturan global saat migrasi.');
       }
 
-      // 2. Save Gallery
-      for (const item of gallery) {
-        try {
-          await setDoc(doc(db, 'gallery', item.id), item);
-        } catch (err) {
-          console.error('Migration error (gallery):', item.id, err);
-          handleFirestoreError(err, OperationType.WRITE, 'gallery/' + item.id);
-          throw new Error(`Gagal menyimpan galeri saat migrasi: ${item.caption}`);
-        }
-      }
-
-      // 3. Add Audit Log
+      // 2. Add Audit Log
       const auditId = Math.random().toString(36).substring(2, 11);
       try {
         await setDoc(doc(db, 'auditLog', auditId), {
@@ -261,17 +236,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
         throw new Error('Gagal menyimpan pengaturan global.');
       }
 
-      // Update Gallery (actually save them now)
-      for (const item of gallery) {
-        try {
-          await setDoc(doc(db, 'gallery', item.id), item);
-        } catch (err) {
-          console.error('Error saving gallery item:', item.id, err);
-          handleFirestoreError(err, OperationType.WRITE, 'gallery/' + item.id);
-          throw new Error(`Gagal menyimpan galeri: ${item.caption}`);
-        }
-      }
-      
       // Add Audit Log
       if (customAuditEntry) {
         try {
@@ -288,7 +252,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             timestamp: timestamp,
             userEmail: editorName,
             action: 'UPDATE_ALL',
-            details: 'Updated family tree, history, and gallery'
+            details: 'Updated family tree and history'
           });
         } catch (err) {
           console.error('Error saving audit log:', err);
@@ -460,44 +424,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
       }
     }
     setConfirmDelete(null);
-  };
-
-  const addGalleryItem = () => {
-    const newItem: GalleryItem = {
-      id: Math.random().toString(36).substr(2, 9),
-      headOfFamilyId: '',
-      headOfFamilyName: '',
-      imageUrl: 'https://picsum.photos/seed/' + Math.random().toString(36).substr(2, 5) + '/1200/800',
-      caption: 'Foto Keluarga',
-      date: new Date().toISOString().split('T')[0],
-      uploadedBy: editorName
-    };
-    setGallery([newItem, ...gallery]);
-  };
-
-  const updateGalleryItem = (id: string, updates: Partial<GalleryItem>) => {
-    setGallery(gallery.map(item => item.id === id ? { ...item, ...updates } : item));
-  };
-
-  const removeGalleryItem = async (id: string) => {
-    if (!window.confirm('Hapus foto ini dari galeri?')) return;
-    try {
-      await deleteDoc(doc(db, 'gallery', id));
-      setGallery(gallery.filter(item => item.id !== id));
-
-      // Log deletion
-      const auditId = Math.random().toString(36).substring(2, 11);
-      await setDoc(doc(db, 'auditLog', auditId), {
-        id: auditId,
-        timestamp: new Date().toISOString(),
-        userEmail: editorName,
-        action: 'DELETE_GALLERY',
-        details: `Menghapus foto galeri dengan ID: ${id}`
-      });
-    } catch (err) {
-      handleFirestoreError(err, OperationType.DELETE, 'gallery/' + id);
-      alert('Gagal menghapus foto dari database.');
-    }
   };
 
   const handleFileUpload = async (file: File, onProgress: (progress: number) => void): Promise<string> => {
@@ -1281,93 +1207,6 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           </div>
 
           <div className="space-y-8">
-            {userProfile?.role === 'admin' && (
-              <div className="bg-white/50 p-6 rounded-3xl border border-brand-olive/10 shadow-sm">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="serif text-2xl">Galeri Keluarga</h2>
-                  <button 
-                    onClick={addGalleryItem}
-                    className="p-2 bg-brand-olive text-white rounded-full hover:shadow-md transition-all"
-                  >
-                    <Plus size={20} />
-                  </button>
-                </div>
-                
-                <div className="space-y-4 max-h-[800px] overflow-y-auto pr-2">
-                  {gallery.length === 0 ? (
-                    <p className="text-sm text-brand-ink/40 italic text-center py-8">Belum ada foto galeri.</p>
-                  ) : (
-                    gallery.map((item) => (
-                      <div key={item.id} className="bg-white p-4 rounded-2xl border border-brand-olive/5 shadow-sm space-y-3">
-                        <select
-                          value={item.headOfFamilyId}
-                          onChange={(e) => {
-                            const member = allMembers.find(m => m.id === e.target.value);
-                            updateGalleryItem(item.id, { 
-                              headOfFamilyId: e.target.value,
-                              headOfFamilyName: member ? member.name : ''
-                            });
-                          }}
-                          className="w-full text-xs bg-brand-cream border-none rounded-lg px-2 py-1 focus:ring-0"
-                        >
-                          <option value="">Pilih Kepala Keluarga</option>
-                          {allMembers.map(m => (
-                            <option key={m.id} value={m.id}>{m.name}</option>
-                          ))}
-                        </select>
-                        <input
-                          type="text"
-                          value={item.caption}
-                          onChange={(e) => updateGalleryItem(item.id, { caption: e.target.value })}
-                          className="w-full font-bold text-sm border-none p-0 focus:ring-0"
-                          placeholder="Keterangan Foto"
-                        />
-                        <div className="flex gap-2">
-                          <div className="flex items-center text-[10px] text-brand-ink/40 bg-brand-cream px-2 py-1 rounded-lg">
-                            <Calendar size={10} className="mr-1" />
-                            <input
-                              type="date"
-                              value={item.date}
-                              onChange={(e) => updateGalleryItem(item.id, { date: e.target.value })}
-                              className="bg-transparent border-none p-0 focus:ring-0 text-[10px]"
-                            />
-                          </div>
-                        </div>
-                        <div className="space-y-2">
-                          <FileUploadButton onUpload={(url) => updateGalleryItem(item.id, { imageUrl: url })} />
-                          {item.imageUrl && (
-                            <div className="relative h-48 rounded-xl overflow-hidden border border-brand-olive/10">
-                              <img src={item.imageUrl} alt="" className="w-full h-full object-cover" />
-                              <button 
-                                onClick={(e) => {
-                                  e.preventDefault();
-                                  updateGalleryItem(item.id, { imageUrl: '' });
-                                }}
-                                className="absolute top-2 right-2 p-1.5 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors shadow-lg z-10"
-                                title="Hapus Foto"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-brand-olive/5">
-                          <span className="text-[10px] text-brand-ink/40 flex items-center">
-                            <UserIcon size={10} className="mr-1" /> {item.uploadedBy}
-                          </span>
-                          <button 
-                            onClick={() => removeGalleryItem(item.id)}
-                            className="text-rose-500 hover:text-rose-700 transition-colors"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

@@ -51,21 +51,6 @@
       },
       "required": ["id", "title", "content", "date", "category"]
     },
-    "GalleryItem": {
-      "title": "Gallery Item",
-      "description": "A photo in the family gallery.",
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "headOfFamilyId": { "type": "string" },
-        "headOfFamilyName": { "type": "string" },
-        "imageUrl": { "type": "string" },
-        "caption": { "type": "string" },
-        "date": { "type": "string" },
-        "uploadedBy": { "type": "string" }
-      },
-      "required": ["id", "headOfFamilyId", "imageUrl"]
-    },
     "AuditEntry": {
       "title": "Audit Entry",
       "description": "A log of an administrative action.",
@@ -98,10 +83,6 @@
     "/news/{newsId}": {
       "schema": "NewsItem",
       "description": "Collection of news and announcements."
-    },
-    "/gallery/{photoId}": {
-      "schema": "GalleryItem",
-      "description": "Collection of family gallery photos."
     },
     "/auditLog/{logId}": {
       "schema": "AuditEntry",

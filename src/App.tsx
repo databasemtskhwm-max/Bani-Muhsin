@@ -5,8 +5,8 @@ import { FamilyTreeHorizontalView } from './components/FamilyTreeHorizontalView'
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
-import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X, Info, MessageCircle, Menu, AlertCircle, Shield } from 'lucide-react';
-import { FamilyMember, NewsItem, GalleryItem, UserProfile } from './types';
+import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, ArrowLeft, LogOut, X, Info, MessageCircle, Menu, AlertCircle, Shield } from 'lucide-react';
+import { FamilyMember, NewsItem, UserProfile } from './types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { auth, db, doc, collection, onSnapshot, logout, handleFirestoreError, OperationType, setDoc, getDoc } from './firebase';
@@ -57,11 +57,9 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [familyData, setFamilyData] = useState<FamilyMember | null>(null);
   const [historyText, setHistoryText] = useState<string>('');
-  const [gallery, setGallery] = useState<GalleryItem[]>([]);
   const [lastUpdate, setLastUpdate] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(window.location.pathname === '/admin');
   const [isLogin, setIsLogin] = useState(window.location.pathname === '/login');
-  const [isGallery, setIsGallery] = useState(window.location.pathname === '/gallery');
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(true);
@@ -238,22 +236,9 @@ export default function App() {
       handleFirestoreError(error, OperationType.GET, 'settings/global');
     });
 
-    // Listen to Gallery
-    const unsubscribeGallery = onSnapshot(collection(db, 'gallery'), (snapshot) => {
-      const galleryData = snapshot.docs.map(doc => doc.data() as GalleryItem);
-      if (galleryData.length > 0) {
-        setGallery(galleryData);
-      } else {
-        fetch('/api/gallery').then(res => res.json()).then(gData => setGallery(gData));
-      }
-    }, (error) => {
-      handleFirestoreError(error, OperationType.GET, 'gallery');
-    });
-
     const handlePopState = () => {
       setIsAdmin(window.location.pathname === '/admin');
       setIsLogin(window.location.pathname === '/login');
-      setIsGallery(window.location.pathname === '/gallery');
     };
     window.addEventListener('popstate', handlePopState);
 
@@ -261,7 +246,6 @@ export default function App() {
       unsubscribeAuth();
       if (unsubscribeProfile) unsubscribeProfile();
       unsubscribeSettings();
-      unsubscribeGallery();
       window.removeEventListener('popstate', handlePopState);
     };
   }, []);
@@ -270,7 +254,6 @@ export default function App() {
     window.history.pushState({}, '', path);
     setIsAdmin(path === '/admin');
     setIsLogin(path === '/login');
-    setIsGallery(path === '/gallery');
     setIsMobileMenuOpen(false);
   };
 
@@ -525,85 +508,6 @@ export default function App() {
     return <AdminPage user={user} userProfile={userProfile} onLogout={handleLogout} />;
   }
 
-  if (isGallery) {
-    // Group gallery by head of family
-    const groupedGallery = gallery.reduce((acc, item) => {
-      const groupKey = item.headOfFamilyId || 'umum';
-      const groupName = item.headOfFamilyName || 'Lainnya / Umum';
-      
-      if (!acc[groupKey]) {
-        acc[groupKey] = {
-          name: groupName,
-          items: []
-        };
-      }
-      acc[groupKey].items.push(item);
-      return acc;
-    }, {} as Record<string, { name: string, items: GalleryItem[] }>);
-
-    return (
-      <ErrorBoundary>
-        <div className="min-h-screen bg-brand-cream p-6 md:p-12">
-          <div className="max-w-7xl mx-auto">
-            <div className="flex justify-between items-center mb-12">
-              <div>
-                <button onClick={() => navigateTo('/')} className="flex items-center text-brand-olive hover:underline mb-2 text-sm">
-                  <ArrowLeft size={16} className="mr-1" /> Kembali
-                </button>
-                <h1 className="serif text-5xl font-bold">Galeri Keluarga</h1>
-                <p className="text-brand-ink/60 mt-2 italic">Momen berharga Bani Muhsin perkepala keluarga</p>
-              </div>
-              <ImageIcon size={48} className="text-brand-olive/20" />
-            </div>
-
-            {Object.keys(groupedGallery).length === 0 ? (
-              <div className="text-center py-20 bg-white/50 rounded-3xl border border-brand-olive/10">
-                <ImageIcon size={48} className="mx-auto text-brand-olive/20 mb-4" />
-                <p className="serif text-2xl text-brand-olive/40 italic">Belum ada foto di galeri.</p>
-              </div>
-            ) : (
-              <div className="space-y-16">
-                {Object.entries(groupedGallery).map(([id, group]) => (
-                  <div key={id} className="space-y-6">
-                    <div className="flex items-center gap-4">
-                      <h2 className="serif text-3xl font-semibold text-brand-olive">{group.name}</h2>
-                      <div className="flex-grow h-px bg-brand-olive/10"></div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                      {group.items.map((item) => (
-                        <motion.div
-                          key={item.id}
-                          initial={{ opacity: 0, scale: 0.95 }}
-                          whileInView={{ opacity: 1, scale: 1 }}
-                          viewport={{ once: true }}
-                          className="bg-white p-4 rounded-3xl shadow-sm border border-brand-olive/5 group hover:shadow-xl transition-all"
-                        >
-                          <div className="aspect-[4/3] rounded-2xl overflow-hidden mb-4">
-                            <img 
-                              src={item.imageUrl} 
-                              alt={item.caption} 
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                              referrerPolicy="no-referrer"
-                            />
-                          </div>
-                          <h3 className="font-bold text-brand-ink mb-1">{item.caption}</h3>
-                          <div className="flex justify-between items-center text-[10px] text-brand-ink/40 uppercase tracking-widest">
-                            <span>{new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
-                            <span>Oleh: {item.uploadedBy}</span>
-                          </div>
-                        </motion.div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      </ErrorBoundary>
-    );
-  }
-
   return (
     <ErrorBoundary>
       <div className="min-h-screen flex flex-col selection:bg-brand-olive selection:text-white relative">
@@ -629,7 +533,6 @@ export default function App() {
         <div className="hidden md:flex gap-8 text-sm uppercase tracking-widest font-medium opacity-70 items-center">
           <a href="#history" className="hover:opacity-100 transition-opacity">Tentang</a>
           <a href="#tree" className="hover:opacity-100 transition-opacity">Silsilah</a>
-          <button onClick={() => navigateTo('/gallery')} className="hover:opacity-100 transition-opacity">Galeri</button>
           {user && userProfile && (userProfile.role === 'admin' || (userProfile.role === 'editor' && userProfile.status === 'approved')) ? (
             <div className="flex items-center gap-4">
               <button onClick={() => navigateTo('/admin')} className="hover:opacity-100 transition-opacity flex items-center gap-1">
@@ -697,7 +600,6 @@ export default function App() {
             >
               <a href="#history" onClick={() => setIsMobileMenuOpen(false)} className="text-brand-ink font-medium text-lg">Tentang</a>
               <a href="#tree" onClick={() => setIsMobileMenuOpen(false)} className="text-brand-ink font-medium text-lg">Silsilah</a>
-              <button onClick={() => navigateTo('/gallery')} className="text-left text-brand-ink font-medium text-lg">Galeri</button>
               <div className="h-px bg-brand-olive/10 w-full"></div>
               {user && userProfile && (userProfile.role === 'admin' || (userProfile.role === 'editor' && userProfile.status === 'approved')) ? (
                 <div className="flex flex-col gap-4">

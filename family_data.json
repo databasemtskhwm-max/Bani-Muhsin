@@ -115,16 +115,5 @@
   ],
   "lastUpdate": "2026-04-01T11:28:04.504Z",
   "users": [],
-  "auditLog": [],
-  "gallery": [
-    {
-      "id": "g1",
-      "headOfFamilyId": "c1-1",
-      "headOfFamilyName": "KH. A. Wahab Muhsin",
-      "imageUrl": "https://picsum.photos/seed/family1/1200/800",
-      "caption": "Keluarga Besar KH. A. Wahab Muhsin",
-      "date": "2025-12-25",
-      "uploadedBy": "Admin"
-    }
-  ]
+  "auditLog": []
 }

@@ -113,18 +113,7 @@ let store = {
   ] as any[],
   lastUpdate: new Date().toISOString(),
   users: [] as any[],
-  auditLog: [] as any[],
-  gallery: [
-    {
-      id: "g1",
-      headOfFamilyId: "c1-1",
-      headOfFamilyName: "KH. A. Wahab Muhsin",
-      imageUrl: "https://picsum.photos/seed/family1/1200/800",
-      caption: "Keluarga Besar KH. A. Wahab Muhsin",
-      date: "2025-12-25",
-      uploadedBy: "Admin"
-    }
-  ] as any[]
+  auditLog: [] as any[]
 };
 
 if (fs.existsSync(DATA_FILE)) {
@@ -283,31 +272,6 @@ async function startServer() {
 
   app.get("/api/audit-log", (req, res) => {
     res.json(store.auditLog);
-  });
-
-  app.get("/api/gallery", (req, res) => {
-    res.json(store.gallery || []);
-  });
-
-  app.post("/api/gallery", (req, res) => {
-    try {
-      const { gallery, userEmail } = req.body;
-      store.gallery = gallery;
-      
-      // Add audit log
-      store.auditLog.push({
-        id: Math.random().toString(36).substr(2, 9),
-        timestamp: new Date().toISOString(),
-        userEmail: userEmail || "Anonymous",
-        action: "UPDATE_GALLERY",
-        details: "Updated gallery items"
-      });
-
-      saveData();
-      res.json({ success: true });
-    } catch (err) {
-      res.status(500).json({ error: "Failed to save gallery" });
-    }
   });
 
   // Vite middleware for development
