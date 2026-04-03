@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronRight, ChevronDown, User, Heart, Flower2, X, Calendar, MapPin, Info, Users, Download, FileText, Check } from 'lucide-react';
+import { ChevronRight, ChevronDown, User, Heart, Flower2, X, Calendar, MapPin, Info, Users, Download, FileText, Check, LayoutDashboard, UserCheck, UserX, Layers } from 'lucide-react';
 import { FamilyMember } from '../types';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -175,11 +175,97 @@ const HorizontalNode: React.FC<{
   );
 };
 
+const DownloadButton: React.FC<{ 
+  loading: boolean; 
+  onComplete: () => void;
+}> = ({ loading, onComplete }) => {
+  const [status, setStatus] = useState<'idle' | 'preparing' | 'ready'>('idle');
+
+  useEffect(() => {
+    if (loading) {
+      setStatus('preparing');
+    } else if (status === 'preparing') {
+      setStatus('ready');
+      const timer = setTimeout(() => {
+        setStatus('idle');
+        onComplete();
+      }, 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, status, onComplete]);
+
+  return (
+    <button
+      disabled={loading}
+      className={cn(
+        "w-full py-4 rounded-full font-bold hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 px-6",
+        status === 'ready' ? "bg-emerald-600 text-white" : "bg-brand-olive text-white"
+      )}
+    >
+      {status === 'preparing' ? (
+        <div className="w-full flex flex-col items-center gap-2">
+          <div className="flex justify-between w-full text-[10px] uppercase tracking-widest font-bold">
+            <span>Menyiapkan PDF...</span>
+            <motion.span
+              animate={{ opacity: [0, 1, 0] }}
+              transition={{ repeat: Infinity, duration: 1.5 }}
+            >
+              Proses
+            </motion.span>
+          </div>
+          <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden relative">
+            <motion.div 
+              className="absolute inset-y-0 left-0 bg-white"
+              initial={{ width: "0%" }}
+              animate={{ width: "95%" }}
+              transition={{ duration: 4, ease: "linear" }}
+            />
+          </div>
+        </div>
+      ) : status === 'ready' ? (
+        <>
+          <Check size={18} />
+          Siap Diunduh!
+        </>
+      ) : (
+        <>
+          <Download size={18} />
+          Unduh Sekarang
+        </>
+      )}
+    </button>
+  );
+};
+
 export const FamilyTreeHorizontalView: React.FC<FamilyTreeHorizontalViewProps> = ({ rootMember, onClose }) => {
   const [selectedMember, setSelectedMember] = useState<FamilyMember | null>(null);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [maxDepth, setMaxDepth] = useState<number>(99); // Default to all
   const containerRef = useRef<HTMLDivElement>(null);
+
+  const getStats = (node: FamilyMember) => {
+    let total = 0;
+    let living = 0;
+    let deceased = 0;
+    let maxGen = 1;
+
+    const traverse = (n: FamilyMember, depth: number) => {
+      total++;
+      if (n.isDeceased) deceased++;
+      else living++;
+      
+      if (depth > maxGen) maxGen = depth;
+      
+      if (n.children) {
+        n.children.forEach(child => traverse(child, depth + 1));
+      }
+    };
+
+    traverse(node, 1);
+    return { total, living, deceased, maxGen };
+  };
+
+  const stats = getStats(rootMember);
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return null;
@@ -198,7 +284,7 @@ export const FamilyTreeHorizontalView: React.FC<FamilyTreeHorizontalViewProps> =
       className="fixed inset-0 z-[60] bg-brand-cream/95 backdrop-blur-xl flex flex-col"
     >
       {/* Header */}
-      <div className="p-6 border-b border-brand-olive/10 flex justify-between items-center bg-white/50">
+      <div className="p-6 border-b border-brand-olive/10 flex flex-col md:flex-row justify-between items-center bg-white/50 gap-4">
         <div className="flex items-center gap-4">
           <div className="p-3 bg-brand-olive/10 rounded-2xl text-brand-olive">
             <Users size={24} />
@@ -208,6 +294,39 @@ export const FamilyTreeHorizontalView: React.FC<FamilyTreeHorizontalViewProps> =
             <p className="text-xs text-brand-ink/60 italic">Menampilkan seluruh garis keturunan secara horizontal</p>
           </div>
         </div>
+        
+        {/* Branch Dashboard */}
+        <div className="flex items-center gap-2 md:gap-4 bg-white/80 p-2 rounded-3xl border border-brand-olive/5 shadow-sm">
+          <div className="flex items-center gap-2 px-4 py-2 bg-brand-olive/5 rounded-2xl">
+            <LayoutDashboard size={14} className="text-brand-olive" />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-tighter font-bold opacity-40">Total Personil</span>
+              <span className="text-sm font-bold text-brand-ink">{stats.total}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 rounded-2xl">
+            <UserCheck size={14} className="text-emerald-600" />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-tighter font-bold opacity-40">Hidup</span>
+              <span className="text-sm font-bold text-emerald-700">{stats.living}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 px-4 py-2 bg-rose-50 rounded-2xl">
+            <UserX size={14} className="text-rose-600" />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-tighter font-bold opacity-40">Alm/ah</span>
+              <span className="text-sm font-bold text-rose-700">{stats.deceased}</span>
+            </div>
+          </div>
+          <div className="hidden sm:flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-2xl">
+            <Layers size={14} className="text-blue-600" />
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-tighter font-bold opacity-40">Generasi</span>
+              <span className="text-sm font-bold text-blue-700">{stats.maxGen}</span>
+            </div>
+          </div>
+        </div>
+
         <div className="flex items-center gap-3">
           <button
             onClick={() => setShowDownloadOptions(true)}
@@ -314,18 +433,10 @@ export const FamilyTreeHorizontalView: React.FC<FamilyTreeHorizontalViewProps> =
                   className="flex-grow"
                 >
                   {({ loading }) => (
-                    <button
-                      disabled={loading}
-                      onClick={() => setTimeout(() => setShowDownloadOptions(false), 1000)}
-                      className="w-full py-4 rounded-full bg-brand-olive text-white font-bold hover:shadow-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                    >
-                      {loading ? 'Menyiapkan...' : (
-                        <>
-                          <Download size={18} />
-                          Unduh Sekarang
-                        </>
-                      )}
-                    </button>
+                    <DownloadButton 
+                      loading={loading} 
+                      onComplete={() => setTimeout(() => setShowDownloadOptions(false), 500)} 
+                    />
                   )}
                 </PDFDownloadLink>
               </div>

@@ -1,32 +1,22 @@
 import React from 'react';
-import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
+import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
 import { FamilyMember } from '../types';
-
-// Register a modern sans-serif font
-Font.register({
-  family: 'Inter',
-  fonts: [
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuLyfAZ9hiA.woff2', fontWeight: 400 },
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuI6fAZ9hiA.woff2', fontWeight: 600 },
-    { src: 'https://fonts.gstatic.com/s/inter/v12/UcCO3FwrK3iLTeHuS_fvQtMwCp50KnMw2boKoduKmMEVuGKYAZ9hiA.woff2', fontWeight: 700 },
-  ],
-});
 
 const styles = StyleSheet.create({
   page: {
     padding: 40,
-    fontFamily: 'Inter',
+    fontFamily: 'Helvetica',
     backgroundColor: '#FFFFFF',
   },
   header: {
     marginBottom: 30,
-    borderBottom: 1,
+    borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
     paddingBottom: 20,
   },
   title: {
     fontSize: 24,
-    fontWeight: 700,
+    fontWeight: 'bold',
     color: '#1A202C',
     marginBottom: 4,
   },
@@ -34,7 +24,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#718096',
     textTransform: 'uppercase',
-    letterSpacing: 1,
   },
   statsContainer: {
     flexDirection: 'row',
@@ -43,9 +32,9 @@ const styles = StyleSheet.create({
   },
   statBox: {
     backgroundColor: '#F7FAFC',
-    padding: '8 12',
+    padding: 8,
     borderRadius: 8,
-    border: 1,
+    borderWidth: 1,
     borderColor: '#EDF2F7',
   },
   statLabel: {
@@ -56,16 +45,16 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: 12,
-    fontWeight: 600,
+    fontWeight: 'bold',
     color: '#2D3748',
   },
   treeContainer: {
     marginTop: 20,
   },
   memberCard: {
-    padding: '10 12',
+    padding: 10,
     borderRadius: 8,
-    border: 1,
+    borderWidth: 1,
     borderColor: '#E2E8F0',
     backgroundColor: '#FFFFFF',
     marginBottom: 6,
@@ -79,14 +68,14 @@ const styles = StyleSheet.create({
   },
   memberName: {
     fontSize: 12,
-    fontWeight: 700,
+    fontWeight: 'bold',
     color: '#2D3748',
   },
   statusBadge: {
     fontSize: 8,
-    padding: '2 6',
+    padding: 2,
     borderRadius: 4,
-    fontWeight: 700,
+    fontWeight: 'bold',
     textTransform: 'uppercase',
   },
   statusLiving: {
@@ -100,7 +89,6 @@ const styles = StyleSheet.create({
   spouseInfo: {
     fontSize: 9,
     color: '#4A5568',
-    fontStyle: 'italic',
     marginTop: 2,
   },
   childCount: {
@@ -110,7 +98,7 @@ const styles = StyleSheet.create({
   },
   indent: {
     marginLeft: 24,
-    borderLeft: 1,
+    borderLeftWidth: 1,
     borderLeftColor: '#CBD5E0',
     paddingLeft: 12,
   },
@@ -119,7 +107,7 @@ const styles = StyleSheet.create({
     bottom: 30,
     left: 40,
     right: 40,
-    borderTop: 1,
+    borderTopWidth: 1,
     borderTopColor: '#E2E8F0',
     paddingTop: 10,
     flexDirection: 'row',
