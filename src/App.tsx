@@ -4,7 +4,7 @@ import { FamilyTreeInteractive } from './components/FamilyTreeInteractive';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage } from './pages/LoginPage';
 import { generateSpeech } from './services/ttsService';
-import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X, Info, MessageCircle } from 'lucide-react';
+import { Volume2, TreeDeciduous, Users, History, Heart, Settings, Download, LogIn, Newspaper, Calendar, User as UserIcon, Flower2, ChevronLeft, ChevronRight, Image as ImageIcon, ArrowLeft, LogOut, X, Info, MessageCircle, Menu } from 'lucide-react';
 import { FamilyMember, NewsItem, GalleryItem, UserProfile } from './types';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
@@ -109,6 +109,7 @@ export default function App() {
   const [searchResults, setSearchResults] = useState<FamilyMember[]>([]);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   const scrollToMember = (memberId: string) => {
@@ -250,6 +251,7 @@ export default function App() {
     setIsAdmin(path === '/admin');
     setIsLogin(path === '/login');
     setIsGallery(path === '/gallery');
+    setIsMobileMenuOpen(false);
   };
 
   const handleLogin = (userData: FirebaseUser) => {
@@ -503,6 +505,8 @@ export default function App() {
           <TreeDeciduous className="text-brand-olive" size={24} />
           <span className="serif text-2xl font-semibold tracking-tight">Bani Muhsin</span>
         </div>
+        
+        {/* Desktop Navigation */}
         <div className="hidden md:flex gap-8 text-sm uppercase tracking-widest font-medium opacity-70 items-center">
           <a href="#history" className="hover:opacity-100 transition-opacity">Tentang</a>
           <a href="#tree" className="hover:opacity-100 transition-opacity">Silsilah</a>
@@ -543,14 +547,77 @@ export default function App() {
             </div>
           )}
         </div>
-        <button 
-          onClick={handleTTS}
-          disabled={isSpeaking}
-          className="p-2 rounded-full border border-brand-olive/20 hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
-          title="Dengarkan Sambutan"
-        >
-          <Volume2 size={20} className={isSpeaking ? "animate-pulse" : ""} />
-        </button>
+
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={handleTTS}
+            disabled={isSpeaking}
+            className="p-2 rounded-full border border-brand-olive/20 hover:bg-brand-olive hover:text-white transition-all disabled:opacity-50"
+            title="Dengarkan Sambutan"
+          >
+            <Volume2 size={20} className={isSpeaking ? "animate-pulse" : ""} />
+          </button>
+
+          {/* Mobile Menu Toggle */}
+          <button 
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 text-brand-olive hover:bg-brand-olive/10 rounded-full transition-all"
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        {/* Mobile Menu Dropdown */}
+        <AnimatePresence>
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="absolute top-full left-0 right-0 bg-white/95 backdrop-blur-xl border-b border-brand-olive/10 p-6 md:hidden flex flex-col gap-6 shadow-2xl z-50"
+            >
+              <a href="#history" onClick={() => setIsMobileMenuOpen(false)} className="text-brand-ink font-medium text-lg">Tentang</a>
+              <a href="#tree" onClick={() => setIsMobileMenuOpen(false)} className="text-brand-ink font-medium text-lg">Silsilah</a>
+              <button onClick={() => navigateTo('/gallery')} className="text-left text-brand-ink font-medium text-lg">Galeri</button>
+              <div className="h-px bg-brand-olive/10 w-full"></div>
+              {user && userProfile && (userProfile.role === 'admin' || (userProfile.role === 'editor' && userProfile.status === 'approved')) ? (
+                <div className="flex flex-col gap-4">
+                  <button onClick={() => navigateTo('/admin')} className="flex items-center gap-3 text-brand-olive font-bold text-lg">
+                    <Settings size={20} /> {userProfile.role === 'admin' ? 'Panel Admin' : 'Panel Editor'}
+                  </button>
+                  <button onClick={handleLogout} className="flex items-center gap-3 text-rose-500 font-bold text-lg">
+                    <LogOut size={20} /> Keluar
+                  </button>
+                </div>
+              ) : user && userProfile && userProfile.role === 'viewer' ? (
+                <div className="flex flex-col gap-4">
+                  <button 
+                    onClick={requestEditorAccess}
+                    className="flex items-center gap-3 text-brand-olive font-bold text-lg"
+                  >
+                    <Settings size={20} /> Ajukan Jadi Editor
+                  </button>
+                  <button onClick={handleLogout} className="flex items-center gap-3 text-rose-500 font-bold text-lg">
+                    <LogOut size={20} /> Keluar
+                  </button>
+                </div>
+              ) : !user ? (
+                <button onClick={() => navigateTo('/login')} className="flex items-center gap-3 text-brand-olive font-bold text-lg">
+                  <LogIn size={20} /> Masuk Admin
+                </button>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-3 text-amber-600 font-bold text-lg">
+                    <Settings size={20} className="animate-spin" /> Menunggu Persetujuan
+                  </div>
+                  <button onClick={handleLogout} className="flex items-center gap-3 text-rose-500 font-bold text-lg">
+                    <LogOut size={20} /> Keluar
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </nav>
 
       <main className="flex-grow">

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { FamilyMember, AuditEntry, GalleryItem, UserProfile } from '../types';
-import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search, GripVertical } from 'lucide-react';
+import { Plus, Trash2, Save, ArrowLeft, Heart, History, LogOut, Image as ImageIcon, Upload, Database, Check, X as XIcon, Shield, Calendar, User as UserIcon, AlertCircle, User, Search, GripVertical, ChevronDown, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'motion/react';
 import { db, doc, collection, setDoc, deleteDoc, onSnapshot, query, orderBy, getDocs, ref, uploadBytes, uploadBytesResumable, getDownloadURL, storage, handleFirestoreError, OperationType } from '../firebase';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -79,6 +79,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
   const [showAudit, setShowAudit] = useState(false);
   const [showUsers, setShowUsers] = useState(false);
   const [showDeletionRequests, setShowDeletionRequests] = useState(false);
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
@@ -650,7 +651,22 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
 
   const deletionRequests = data ? getDeletionRequests(data) : [];
 
+  const toggleCollapse = (id: string) => {
+    setCollapsedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
   const renderEditor = (node: FamilyMember, depth = 0) => {
+    const isCollapsed = collapsedNodes.has(node.id);
+    const hasChildren = node.children && node.children.length > 0;
+
     const isMatch = searchQuery && (
       node.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (node.spouse && node.spouse.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -669,6 +685,15 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
           <div className="cursor-grab active:cursor-grabbing text-brand-olive/20 hover:text-brand-olive transition-colors p-1" title="Geser untuk urutkan">
             <GripVertical size={16} />
           </div>
+          {hasChildren && (
+            <button 
+              onClick={() => toggleCollapse(node.id)}
+              className="p-1 text-brand-olive/40 hover:text-brand-olive transition-colors"
+              title={isCollapsed ? "Tampilkan Keturunan" : "Sembunyikan Keturunan"}
+            >
+              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
+            </button>
+          )}
           <input
             type="text"
             value={node.name}
@@ -786,7 +811,7 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
             className="text-[10px] border-brand-olive/10 rounded-lg p-1 flex-grow"
           />
         </div>
-        {node.children && (
+        {!isCollapsed && node.children && (
           <Reorder.Group 
             axis="y" 
             values={node.children} 
