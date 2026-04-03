@@ -49,18 +49,23 @@ const MemberCard: React.FC<{
         onClick={() => onShowDetails(member)}
       >
         <div className="flex items-center gap-3 w-full">
-          <div className="relative flex-shrink-0">
+          <div className="relative flex-shrink-0 flex items-center">
             {member.photoUrl ? (
-              <div className="w-12 h-12 rounded-full border-2 border-white/50 overflow-hidden shadow-sm">
+              <div className="w-12 h-12 rounded-full border-2 border-white/50 overflow-hidden shadow-sm z-10">
                 <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
               </div>
             ) : (
-              <div className="w-12 h-12 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive/40 border-2 border-white/50">
+              <div className="w-12 h-12 rounded-full bg-brand-olive/10 flex items-center justify-center text-brand-olive/40 border-2 border-white/50 z-10">
                 <User size={24} />
               </div>
             )}
+            {member.spouse && member.spousePhotoUrl && (
+              <div className="w-10 h-10 rounded-full border-2 border-white/50 overflow-hidden shadow-sm -ml-4 z-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                <img src={member.spousePhotoUrl} alt={member.spouse} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              </div>
+            )}
             {member.isDeceased && (
-              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+              <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm z-20">
                 <Flower2 size={12} className="text-brand-olive/60" />
               </div>
             )}
@@ -545,15 +550,24 @@ export const FamilyTreeHorizontalView: React.FC<FamilyTreeHorizontalViewProps> =
                       <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
                         <Heart size={18} />
                       </div>
-                      <div>
+                      <div className="flex-grow">
                         <p className="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Pasangan</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{selectedMember.spouse}</p>
-                          {selectedMember.spouseIsDeceased && (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-[8px] font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1">
-                              <Flower2 size={8} /> Alm/ah
-                            </span>
+                        <div className="flex items-center gap-3">
+                          {selectedMember.spousePhotoUrl && (
+                            <div className="w-10 h-10 rounded-full border-2 border-rose-100 overflow-hidden shadow-sm flex-shrink-0">
+                              <img src={selectedMember.spousePhotoUrl} alt={selectedMember.spouse} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            </div>
                           )}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{selectedMember.spouse}</p>
+                              {selectedMember.spouseIsDeceased && (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-50 text-[8px] font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1">
+                                  <Flower2 size={8} /> Alm/ah
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>

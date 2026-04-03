@@ -61,16 +61,28 @@ const Node: React.FC<NodeProps & { onShowFocusView?: (member: FamilyMember) => v
   const getIcon = (type: string) => {
     if (member.photoUrl) {
       return (
-        <div className="mr-3 w-10 h-10 rounded-full border-2 border-white/50 overflow-hidden shadow-sm flex-shrink-0">
-          <img 
-            src={member.photoUrl} 
-            alt={member.name} 
-            className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = "https://via.placeholder.com/100?text=" + member.name.charAt(0);
-            }}
-          />
+        <div className="mr-3 flex items-center flex-shrink-0">
+          <div className="w-10 h-10 rounded-full border-2 border-white/50 overflow-hidden shadow-sm z-10">
+            <img 
+              src={member.photoUrl} 
+              alt={member.name} 
+              className="w-full h-full object-cover"
+              referrerPolicy="no-referrer"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = "https://via.placeholder.com/100?text=" + member.name.charAt(0);
+              }}
+            />
+          </div>
+          {member.spouse && member.spousePhotoUrl && (
+            <div className="w-8 h-8 rounded-full border-2 border-white/50 overflow-hidden shadow-sm -ml-3 z-0 opacity-80 group-hover:opacity-100 transition-opacity">
+              <img 
+                src={member.spousePhotoUrl} 
+                alt={member.spouse} 
+                className="w-full h-full object-cover"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          )}
         </div>
       );
     }
@@ -264,15 +276,24 @@ const Node: React.FC<NodeProps & { onShowFocusView?: (member: FamilyMember) => v
                       <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
                         <Heart size={18} />
                       </div>
-                      <div>
+                      <div className="flex-grow">
                         <p className="text-[10px] uppercase tracking-widest font-bold opacity-40 mb-1">Pasangan</p>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{member.spouse}</p>
-                          {member.spouseIsDeceased && (
-                            <span className="px-2 py-0.5 rounded-full bg-rose-50 text-[8px] font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1">
-                              <Flower2 size={8} /> Alm/ah
-                            </span>
+                        <div className="flex items-center gap-3">
+                          {member.spousePhotoUrl && (
+                            <div className="w-10 h-10 rounded-full border-2 border-rose-100 overflow-hidden shadow-sm flex-shrink-0">
+                              <img src={member.spousePhotoUrl} alt={member.spouse} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                            </div>
                           )}
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium">{member.spouse}</p>
+                              {member.spouseIsDeceased && (
+                                <span className="px-2 py-0.5 rounded-full bg-rose-50 text-[8px] font-bold uppercase tracking-wider text-rose-600 flex items-center gap-1">
+                                  <Flower2 size={8} /> Alm/ah
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>

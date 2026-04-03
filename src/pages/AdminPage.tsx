@@ -787,6 +787,38 @@ export const AdminPage: React.FC<AdminPageProps> = ({ user, userProfile, onLogou
                   className="w-24"
                 />
               </div>
+              {node.spouse && (
+                <div className="flex items-center gap-2">
+                  {node.spousePhotoUrl && (
+                    <div className="relative w-8 h-8 rounded-full overflow-hidden border border-brand-olive/20 bg-white shadow-sm flex-shrink-0 group">
+                      <img src={node.spousePhotoUrl} alt="" className="w-full h-full object-cover" />
+                      <button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          updateMember(node.id, { spousePhotoUrl: '' });
+                        }}
+                        className="absolute inset-0 bg-rose-500/80 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                        title="Hapus Foto Pasangan"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex gap-1 flex-grow">
+                    <input
+                      type="text"
+                      placeholder={`URL Foto ${node.spouse} (atau unggah)`}
+                      value={node.spousePhotoUrl || ''}
+                      onChange={(e) => updateMember(node.id, { spousePhotoUrl: e.target.value })}
+                      className="text-[10px] border-brand-olive/10 rounded-lg p-1 flex-grow"
+                    />
+                    <FileUploadButton 
+                      onUpload={(url) => updateMember(node.id, { spousePhotoUrl: url })} 
+                      className="w-24"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-1">

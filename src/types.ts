@@ -9,6 +9,7 @@ export interface FamilyMember {
   spouseIsDeceased?: boolean;
   isDeceased?: boolean;
   photoUrl?: string;
+  spousePhotoUrl?: string;
   birthDate?: string;
   deathDate?: string;
   address?: string;
