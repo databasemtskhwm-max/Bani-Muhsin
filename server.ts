@@ -4,6 +4,17 @@ import fs from "fs";
 import path from "path";
 import multer from "multer";
 import sharp from "sharp";
+import { initializeApp } from "firebase/app";
+import { getFirestore, doc, setDoc, getDoc, collection, serverTimestamp } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+
+// Import the Firebase configuration
+const firebaseConfig = JSON.parse(fs.readFileSync(path.resolve("firebase-applet-config.json"), "utf-8"));
+
+// Initialize Firebase Web SDK for Server (using API Key)
+const firebaseApp = initializeApp(firebaseConfig);
+const db = getFirestore(firebaseApp, firebaseConfig.firestoreDatabaseId);
+const firebaseStorage = getStorage(firebaseApp, firebaseConfig.storageBucket);
 
 const DATA_FILE = path.resolve("family_data.json");
 const UPLOADS_DIR = path.resolve("uploads");
@@ -18,7 +29,7 @@ if (!fs.existsSync(COMPRESSED_DIR)) {
 }
 
 // Configure multer for file storage
-const storage = multer.diskStorage({
+const multerStorage = multer.diskStorage({
   destination: (req, file, cb) => {
     cb(null, UPLOADS_DIR);
   },
@@ -28,7 +39,7 @@ const storage = multer.diskStorage({
   }
 });
 
-const upload = multer({ storage });
+const upload = multer({ storage: multerStorage });
 
 const defaultData = {
   id: "root",
@@ -141,30 +152,119 @@ async function startServer() {
   app.use("/uploads", express.static(UPLOADS_DIR));
 
   // API Routes
+  app.get("/api/image/:id", async (req, res) => {
+    try {
+      const imageId = req.params.id;
+      const docRef = doc(db, "hosted_images", imageId);
+      const docSnap = await getDoc(docRef);
+      
+      if (!docSnap.exists()) {
+        return res.status(404).send("Image not found");
+      }
+      
+      const data = docSnap.data();
+      if (!data || !data.data) {
+        return res.status(404).send("Image data missing");
+      }
+      
+      const buffer = Buffer.from(data.data, 'base64');
+      res.setHeader('Content-Type', data.contentType || 'image/webp');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.send(buffer);
+    } catch (err) {
+      console.error("Error serving image from Firestore:", err);
+      res.status(500).send("Internal server error");
+    }
+  });
+
   app.post("/api/upload", upload.single("file"), async (req, res) => {
     if (!req.file) {
+      console.error("Upload error: No file in request");
       return res.status(400).json({ error: "No file uploaded" });
     }
     
+    console.log("Processing upload for:", req.file.originalname);
+    
     try {
-      const compressedFilename = `compressed-${req.file.filename.split('.')[0]}.webp`;
-      const compressedPath = path.join(COMPRESSED_DIR, compressedFilename);
-      
-      await sharp(req.file.path)
+      // 1. Read file to buffer and compress with sharp
+      console.log("Compressing image with sharp...");
+      const buffer = await sharp(req.file.path)
         .resize(1200, 1200, { fit: 'inside', withoutEnlargement: true })
         .webp({ quality: 80 })
-        .toFile(compressedPath);
-        
-      // Optionally remove the original file to save space
-      // fs.unlinkSync(req.file.path);
+        .toBuffer();
       
-      const fileUrl = `/uploads/compressed/${compressedFilename}`;
-      res.json({ success: true, url: fileUrl });
-    } catch (err) {
-      console.error("Compression error:", err);
-      // Fallback to original if compression fails
-      const fileUrl = `/uploads/${req.file.filename}`;
-      res.json({ success: true, url: fileUrl });
+      console.log("Compression successful, buffer size:", buffer.length);
+
+      // 2. Upload to Firebase Storage using Web SDK
+      const safeName = req.file.originalname.replace(/[^a-z0-9.]/gi, '_').toLowerCase();
+      const firebaseFilename = `uploads/${Date.now()}-${safeName}.webp`;
+      
+      let uploadSuccess = false;
+      let lastError = null;
+      let finalDownloadUrl = "";
+
+      try {
+        console.log(`Attempting upload to Firebase Storage...`);
+        const storageRef = ref(firebaseStorage, firebaseFilename);
+        await uploadBytes(storageRef, buffer, { contentType: 'image/webp' });
+        finalDownloadUrl = await getDownloadURL(storageRef);
+        uploadSuccess = true;
+        console.log(`Successfully uploaded to Storage`);
+      } catch (err: any) {
+        console.warn(`Failed to upload to Storage:`, err.message);
+        lastError = err;
+      }
+
+      if (!uploadSuccess) {
+        console.warn("Firebase Storage failed. Falling back to Firestore-based hosting...");
+        
+        // Firestore Fallback: Store image as base64 in a separate collection
+        const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const docRef = doc(db, "hosted_images", imageId);
+        
+        await setDoc(docRef, {
+          data: buffer.toString('base64'),
+          contentType: 'image/webp',
+          createdAt: serverTimestamp(),
+          originalName: req.file.originalname
+        });
+        
+        const protocol = req.headers['x-forwarded-proto'] || 'http';
+        const host = req.headers.host;
+        finalDownloadUrl = `${protocol}://${host}/api/image/${imageId}`;
+        
+        console.log(`Successfully stored in Firestore fallback: ${finalDownloadUrl}`);
+        uploadSuccess = true;
+      }
+      
+      const downloadUrl = finalDownloadUrl;
+      
+      // 3. Cleanup local file
+      try {
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+          console.log("Temporary local file deleted");
+        }
+      } catch (e) {
+        console.warn("Failed to delete temp file:", e);
+      }
+      
+      console.log("Upload complete! URL:", downloadUrl);
+      res.json({ success: true, url: downloadUrl });
+    } catch (err: any) {
+      console.error("CRITICAL UPLOAD ERROR:", err);
+      
+      // Attempt cleanup even on failure
+      try {
+        if (req.file && fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+      } catch (e) {}
+
+      res.status(500).json({ 
+        error: "Gagal mengunggah ke Firebase Storage", 
+        details: err.message || String(err) 
+      });
     }
   });
 
